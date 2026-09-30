@@ -2,22 +2,14 @@ import api from './api';
 
 const savedJobsKey = 'careerpilot_saved_jobs';
 
-export async function getJobs() {
-  const response = await api.get('/jobs');
-  return response.data.data.jobs || [];
+export async function getJobs(filters = {}) {
+  const response = await api.get('/jobs', { params: filters });
+  return response.data.data;
 }
 
 export async function saveJob(jobId) {
-  try {
-    const response = await api.post('/saved-jobs', { jobId });
-    return response.data.data?.savedJob || { job_id: jobId };
-  } catch (error) {
-    if (error.response?.status !== 404 && error.response?.status !== 405) throw error;
-    const saved = JSON.parse(localStorage.getItem(savedJobsKey) || '[]');
-    const next = saved.includes(String(jobId)) ? saved : [...saved, String(jobId)];
-    localStorage.setItem(savedJobsKey, JSON.stringify(next));
-    return { id: jobId, localOnly: true };
-  }
+  const response = await api.post('/saved-jobs', { jobId });
+  return response.data.data?.savedJob || { job_id: jobId };
 }
 
 export async function unsaveJob(jobId, savedJobId = null) {
@@ -38,7 +30,13 @@ export async function unsaveJob(jobId, savedJobId = null) {
 }
 
 export function getLocalSavedJobIds() {
-  return JSON.parse(localStorage.getItem(savedJobsKey) || '[]');
+  try {
+    const saved = JSON.parse(localStorage.getItem(savedJobsKey) || '[]');
+    return Array.isArray(saved) ? saved.map(String) : [];
+  } catch {
+    localStorage.removeItem(savedJobsKey);
+    return [];
+  }
 }
 
 export async function getSavedJobs() {

@@ -1,213 +1,190 @@
-import { useEffect, useMemo, useState } from 'react';
-import { FiBookmark, FiCheck, FiMapPin, FiSearch, FiShield, FiStar, FiBriefcase, FiEye } from 'react-icons/fi';
-import { useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { FiArrowLeft, FiBookmark, FiBriefcase, FiExternalLink, FiMapPin } from 'react-icons/fi';
 import api from '../services/api';
+import { applyToJob, getSavedJobs, saveJob, unsaveJob } from '../services/jobsService';
 
-const parseJsonArray = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
+function formatSalary(job) {
+  if (job.salary_min == null && job.salary_max == null) return 'Salary not listed';
+  const formatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+  const lower = job.salary_min == null ? null : formatter.format(Number(job.salary_min));
+  const upper = job.salary_max == null ? null : formatter.format(Number(job.salary_max));
+  const range = lower && upper ? `${lower}–${upper}` : `${lower || upper}+`;
+  return `${job.salary_currency || ''} ${range}`.trim();
+}
+
+function normalizeSkills(value) {
+  if (Array.isArray(value)) return value.map(String).map((skill) => skill.trim()).filter(Boolean);
+  if (typeof value !== 'string' || !value.trim()) return [];
   try {
     const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
+    if (Array.isArray(parsed)) return parsed.map(String).map((skill) => skill.trim()).filter(Boolean);
   } catch {
-    return String(value)
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
+    // Older/manual job records may use comma-separated skills.
   }
-};
+  return value.split(',').map((skill) => skill.trim()).filter(Boolean);
+}
 
 export default function JobDetailPage() {
   const { id } = useParams();
   const [job, setJob] = useState(null);
   const [resumes, setResumes] = useState([]);
   const [selectedResumeId, setSelectedResumeId] = useState('');
-  const [matchResult, setMatchResult] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
+  const [savedRecordId, setSavedRecordId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const requiredSkills = normalizeSkills(job?.required_skills);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [jobResponse, resumeResponse] = await Promise.all([
-          api.get(`/jobs/${id}`),
-          api.get('/resumes'),
-        ]);
-
-        setJob(jobResponse.data.data.job);
+    let active = true;
+    Promise.all([api.get(`/jobs/${id}`), api.get('/resumes'), getSavedJobs().catch(() => [])])
+      .then(([jobResponse, resumeResponse, savedJobs]) => {
+        if (!active) return;
+        const foundJob = jobResponse.data.data.job;
+        setJob(foundJob);
         const resumeList = resumeResponse.data.data.resumes || [];
         setResumes(resumeList);
-        if (resumeList.length) {
-          setSelectedResumeId(String(resumeList[0].id));
-        }
-      } catch (err) {
-        setError(err.response?.data?.message || 'Unable to load job details.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
+        if (resumeList.length) setSelectedResumeId(String(resumeList[0].id));
+        const saved = savedJobs.find((item) => String(item.job_id) === String(foundJob.id));
+        if (saved) setSavedRecordId(saved.id);
+      })
+      .catch((err) => {
+        if (active) setError(err.response?.data?.message || 'Unable to load this job.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
   }, [id]);
 
-  const requiredSkills = useMemo(() => parseJsonArray(job?.required_skills), [job]);
-  const preferredSkills = useMemo(() => parseJsonArray(job?.preferred_skills), [job]);
-
-  const analyzeMatch = async () => {
-    if (!selectedResumeId) {
-      setError('Please select a resume to compare.');
-      return;
-    }
-
+  const handleSave = async () => {
+    setWorking('save');
+    setError('');
+    setNotice('');
     try {
-      const response = await api.post('/matches/analyze', {
-        resumeId: Number(selectedResumeId),
-        jobId: Number(id),
-      });
-      setMatchResult(response.data.data.result);
-      setError('');
+      if (savedRecordId) {
+        await unsaveJob(job.id, savedRecordId);
+        setSavedRecordId(null);
+        setNotice('Removed from your saved roles.');
+      } else {
+        const saved = await saveJob(job.id);
+        setSavedRecordId(saved.id);
+        setNotice('Saved to your shortlist.');
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to analyze this role.');
+      setError(err.response?.data?.message || 'Unable to update your saved roles.');
+    } finally {
+      setWorking('');
     }
   };
 
-  if (loading) {
-    return <div className="page-loading">Loading job details...</div>;
-  }
+  const handleTrack = async () => {
+    setWorking('track');
+    setError('');
+    setNotice('');
+    try {
+      const response = await applyToJob(job.id);
+      setNotice(response.data.message === 'Application already exists'
+        ? 'This role is already in your application tracker.'
+        : 'Added to your application tracker. Open the original posting to complete the application.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Unable to track this role.');
+    } finally {
+      setWorking('');
+    }
+  };
 
-  if (!job) {
-    return <div className="page-section"><div className="alert alert-danger">{error || 'Job not found.'}</div></div>;
-  }
+  const handleAnalyze = async () => {
+    if (!selectedResumeId) {
+      setError('Add a resume before running a match check.');
+      return;
+    }
+    setWorking('analyze');
+    setError('');
+    setNotice('');
+    try {
+      const selectedResume = resumes.find((resume) => String(resume.id) === String(selectedResumeId));
+      const response = await api.post(`/resumes/${selectedResumeId}/analyze`, { jobDescription: job.description || '', targetRole: selectedResume?.target_role || '' });
+      setAnalysis(response.data.data.analysis);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Unable to compare this resume with the listing.');
+    } finally {
+      setWorking('');
+    }
+  };
+
+  if (loading) return <div className="page-loading">Loading role details…</div>;
+  if (!job) return <div className="page-section"><div className="alert alert-danger">{error || 'Job not found.'}</div><Link to="/jobs">Back to job search</Link></div>;
 
   return (
-    <div className="page-section job-match-page">
-      <div className="job-match-header">
-        <div className="job-match-title-wrap">
-          <div className="eyebrow">Best match</div>
-          <h2>Your best job matches</h2>
-        </div>
-        <span className="status-indicator" aria-label="Live match status" />
-      </div>
-
-      <div className="job-match-shell">
-        <div className="job-match-topbar">
-          <div className="job-match-tabs" aria-label="Job tabs">
-            <button type="button" className="job-tab active">Overview</button>
-            <button type="button" className="job-tab">Company</button>
-          </div>
-
-          <div className="job-match-actions">
-            <button type="button" className="job-action ghost">
-              <FiCheck /> Already Applied?
-            </button>
-            <button type="button" className="job-action">
-              <FiBookmark /> Save
-            </button>
-            <button type="button" className="job-action primary">
-              Apply
-            </button>
+    <div className="page-section job-detail-page">
+      <Link to="/jobs" className="back-link"><FiArrowLeft /> Back to job search</Link>
+      <section className="job-detail-hero panel-card">
+        <div className="job-detail-identity">
+          <div className="company-avatar company-avatar-large">{job.company?.trim()?.charAt(0)?.toUpperCase() || <FiBriefcase />}</div>
+          <div>
+            <div className="eyebrow">{job.source === 'adzuna' ? 'Live listing' : 'Sample opportunity'}</div>
+            <h2>{job.title}</h2>
+            <p>{job.company || 'Company not listed'}</p>
           </div>
         </div>
-
-        <div className="job-company-strip">
-          <div className="company-identity">
-            <div className="company-logo">
-              <FiBriefcase size={20} />
-            </div>
-            <div>
-              <div className="company-name">{job.company || 'Company'}</div>
-              <div className="company-subtitle">Enterprise AI solutions with validated data</div>
-            </div>
-          </div>
-
-          <div className="company-icons" aria-label="Job actions">
-            <button type="button" className="mini-icon" aria-label="Open job"><FiEye /></button>
-            <button type="button" className="mini-icon" aria-label="Save job"><FiBookmark /></button>
-            <button type="button" className="mini-icon" aria-label="Share job"><FiSearch /></button>
-          </div>
+        <div className="job-detail-meta">
+          {job.location ? <span><FiMapPin /> {job.location}</span> : null}
+          {job.employment_type ? <span><FiBriefcase /> {job.employment_type}</span> : null}
+          <span>{formatSalary(job)}</span>
         </div>
-
-        <div className="job-headline-wrap">
-          <h3>{job.title}</h3>
+        <div className="job-detail-actions">
+          <button type="button" className="btn btn-outline-secondary" onClick={handleSave} disabled={working !== ''}>
+            <FiBookmark /> {working === 'save' ? 'Saving…' : savedRecordId ? 'Saved' : 'Save role'}
+          </button>
+          <button type="button" className="btn btn-outline-primary" onClick={handleTrack} disabled={working !== ''}>
+            {working === 'track' ? 'Saving…' : 'I applied · track'}
+          </button>
+          {job.apply_url ? <a className="btn btn-primary" href={job.apply_url} target="_blank" rel="noreferrer noopener">Open original posting <FiExternalLink /></a> : null}
         </div>
+      </section>
 
-        <div className="job-pill-row">
-          <span className="job-pill">Fall 2026</span>
-          <span className="job-pill muted">Confirmed live in the last 24 hours</span>
-          <span className="job-pill highlight">Unlock job analytics with CareerPilot+</span>
-        </div>
+      {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}
+      {notice ? <div className="alert alert-success" role="status">{notice}</div> : null}
 
-        <div className="job-meta-row">
-          <div className="meta-item"><FiSearch /> No salary listed</div>
-          <div className="meta-item"><FiStar /> Internship</div>
-          <div className="meta-item"><FiMapPin /> {job.location || 'Hybrid, Telangana, India'}</div>
-        </div>
+      <div className="job-detail-grid">
+        <section className="panel-card job-description-panel">
+          <div className="panel-header"><div><span className="eyebrow">Role overview</span><h3>About this opportunity</h3></div></div>
+          {job.source === 'adzuna' ? <p className="job-snippet-note">This is a summary from the listing provider. Open the original posting for the full description and current availability.</p> : null}
+          <p className="job-full-description">{job.description || 'The employer has not supplied a description.'}</p>
+          {job.experience_requirements ? <div className="detail-section"><h4>Experience</h4><p>{job.experience_requirements}</p></div> : null}
+          {requiredSkills.length ? <div className="detail-section"><h4>Skills listed</h4><div className="tag-row">{requiredSkills.map((skill) => <span className="tag" key={skill}>{skill}</span>)}</div></div> : null}
+          {job.source === 'adzuna' ? <p className="listing-source"><a href="https://www.adzuna.com/" target="_blank" rel="noreferrer noopener">Jobs by Adzuna</a></p> : null}
+        </section>
 
-        <div className="job-content-row">
-          <div className="job-details-panel">
-            <div className="job-panel-header">
-              <h4>About the job</h4>
-              <div className="segmented-control">
-                <button type="button" className="segmented active">Summary</button>
-                <button type="button" className="segmented">Full posting</button>
-              </div>
+        <aside className="panel-card match-tool-panel">
+          <span className="eyebrow">Resume match</span>
+          <h3>Compare your resume</h3>
+          <p>Check for relevant terms and basic resume sections. This is a heuristic guide, not a hiring prediction.</p>
+          {resumes.length ? (
+            <>
+              <label className="form-label" htmlFor="resume-select">Choose a resume</label>
+              <select id="resume-select" className="form-select" value={selectedResumeId} onChange={(event) => { setSelectedResumeId(event.target.value); setAnalysis(null); }}>
+                {resumes.map((resume) => <option key={resume.id} value={resume.id}>{resume.title}</option>)}
+              </select>
+              <button type="button" className="btn btn-primary w-100 mt-3" onClick={handleAnalyze} disabled={working !== ''}>
+                {working === 'analyze' ? 'Comparing…' : 'Run match check'}
+              </button>
+            </>
+          ) : <Link className="btn btn-primary w-100" to="/resumes">Add a resume</Link>}
+
+          {analysis ? (
+            <div className="match-result" aria-live="polite">
+              <div className="match-result-score"><strong>{analysis.score}%</strong><span>keyword and structure score</span></div>
+              <div><strong>Matched</strong><p>{analysis.matchedKeywords?.length ? analysis.matchedKeywords.join(', ') : 'No matching terms found.'}</p></div>
+              <div><strong>Consider adding</strong><p>{analysis.missingKeywords?.length ? analysis.missingKeywords.slice(0, 10).join(', ') : 'No missing terms detected.'}</p></div>
+              {analysis.recommendations?.length ? <ul>{analysis.recommendations.slice(0, 4).map((item) => <li key={item}>{item}</li>)}</ul> : null}
             </div>
-
-            <div className="job-copy-block">
-              <div className="section-label">Requirements</div>
-              <ul>
-                {requiredSkills.length ? requiredSkills.map((skill) => <li key={skill}>{skill}</li>) : <li>No required skills listed.</li>}
-              </ul>
-            </div>
-
-            <div className="job-copy-block">
-              <div className="section-label">Responsibilities</div>
-              <p>{job.description || 'No detailed responsibilities were provided for this role.'}</p>
-            </div>
-          </div>
-
-          <aside className="resume-panel">
-            <div className="resume-panel-header">
-              <div className="resume-badge"><FiShield /></div>
-              <h4>Improve Your Resume</h4>
-            </div>
-
-            <p className="resume-target">1 out of 4 required keywords found</p>
-
-            <div className="keyword-row">
-              {preferredSkills.length ? preferredSkills.slice(0, 4).map((skill) => <span key={skill} className="keyword-tag">{skill}</span>) : <span className="keyword-tag">Skills</span>}
-            </div>
-
-            <button type="button" className="resume-cta" onClick={analyzeMatch} disabled={!resumes.length}>
-              {resumes.length ? 'Tailor my resume' : 'Add a resume'}
-            </button>
-
-            {resumes.length ? (
-              <div className="resume-select-wrap">
-                <label htmlFor="resume-select">Resume</label>
-                <select id="resume-select" value={selectedResumeId} onChange={(event) => setSelectedResumeId(event.target.value)}>
-                  {resumes.map((resume) => (
-                    <option key={resume.id} value={resume.id}>{resume.title}</option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-          </aside>
-        </div>
-
-        {error ? <div className="alert alert-danger mt-3">{error}</div> : null}
-
-        {matchResult ? (
-          <div className="match-summary mt-3">
-            <h4>Match summary</h4>
-            <div className="badge-large">{matchResult.matchPercentage}%</div>
-            <ul className="mt-3">
-              <li>Matching skills: {matchResult.matchingSkills.length ? matchResult.matchingSkills.join(', ') : 'None'}</li>
-              <li>Missing skills: {matchResult.missingSkills.length ? matchResult.missingSkills.join(', ') : 'No major gaps'}</li>
-              <li>Partial skills: {matchResult.partialSkills.length ? matchResult.partialSkills.join(', ') : 'None'}</li>
-            </ul>
-          </div>
-        ) : null}
+          ) : null}
+        </aside>
       </div>
     </div>
   );

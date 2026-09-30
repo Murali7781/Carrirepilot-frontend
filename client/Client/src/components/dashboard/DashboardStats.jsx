@@ -1,22 +1,22 @@
 const stats = [
   { key: 'profile', label: 'Profile', detail: 'Completion', className: 'accent-purple' },
   { key: 'resumes', label: 'Resumes', detail: 'Saved', className: 'accent-blue' },
-  { key: 'jobs', label: 'Jobs', detail: 'Tracked', className: 'accent-green' },
-  { key: 'interviews', label: 'Interviews', detail: 'Sessions', className: 'accent-gold' },
+  { key: 'applications', label: 'Applications', detail: 'Tracked roles', className: 'accent-green' },
+  { key: 'interviews', label: 'Interview practice', detail: 'Sessions', className: 'accent-gold' },
 ];
 
-export default function DashboardStats({ profileProgress, resumesCount, jobsCount, interviewsCount }) {
+export default function DashboardStats({ profileProgress, resumesCount, applicationsCount, interviewsCount }) {
   const values = {
     profile: profileProgress,
     resumes: resumesCount,
-    jobs: jobsCount,
+    applications: applicationsCount,
     interviews: interviewsCount,
   };
 
   return (
-    <div className="row g-4 mb-4">
+    <div className="dashboard-stats-grid">
       {stats.map((stat) => (
-        <div className="col-md-3" key={stat.key}>
+        <div className="dashboard-grid-column" key={stat.key}>
           <div className={`stat-card ${stat.className}`}>
             <span>{stat.label}</span>
             <strong>{values[stat.key]}{stat.key === 'profile' ? '%' : ''}</strong>

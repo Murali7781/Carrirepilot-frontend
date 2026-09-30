@@ -1,13 +1,19 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getProfile, loginUser, registerUser, updateProfile } from '../services/authService';
+import AuthContext from './contextValue';
 
-const AuthContext = createContext(null);
-
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
+function readStoredUser() {
+  try {
     const stored = localStorage.getItem('careerpilot_user');
     return stored ? JSON.parse(stored) : null;
-  });
+  } catch {
+    localStorage.removeItem('careerpilot_user');
+    return null;
+  }
+}
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(readStoredUser);
   const [token, setToken] = useState(() => localStorage.getItem('careerpilot_token'));
   const [loading, setLoading] = useState(true);
   const skipNextBootstrap = useRef(false);
@@ -69,13 +75,19 @@ export function AuthProvider({ children }) {
     return response;
   };
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     if (!token) return null;
     const profile = await getProfile();
     setUser(profile);
     localStorage.setItem('careerpilot_user', JSON.stringify(profile));
     return profile;
-  };
+  }, [token]);
+
+  useEffect(() => {
+    const handleUnauthorized = () => logout(true);
+    window.addEventListener('careerpilot:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('careerpilot:unauthorized', handleUnauthorized);
+  }, []);
 
   const saveProfile = async (payload) => {
     const profile = await updateProfile(payload);
@@ -96,18 +108,8 @@ export function AuthProvider({ children }) {
       refreshUser,
       saveProfile,
     }),
-    [user, token, loading],
+    [user, token, loading, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-
-  return context;
 }
