@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 
 export default function ProfilePage() {
   const { saveProfile, user } = useAuth();
@@ -24,7 +24,7 @@ export default function ProfilePage() {
           workMode: profile.workMode || 'Any',
         });
       } catch (err) {
-        setError('Unable to load profile information.');
+        setError(err.response?.data?.message || 'Unable to load profile information.');
       } finally {
         setLoading(false);
       }
@@ -59,8 +59,22 @@ export default function ProfilePage() {
 
   return (
     <div className="page-section">
-      <div className="panel-card narrow-panel">
-        <div className="panel-header"><div><div className="eyebrow">Your career compass</div><h3>Career profile</h3><p className="text-muted mb-0">Keep your details and job preferences ready for every application.</p></div></div>
+      <div className="page-heading">
+        <div><div className="eyebrow">Your career compass</div><h2>Career profile</h2><p>Keep your details and job preferences ready for every application.</p></div>
+      </div>
+      <div className="profile-layout">
+        <aside className="panel-card profile-intro">
+          <div className="profile-avatar">{form.name?.charAt(0)?.toUpperCase() || 'U'}</div>
+          <h3>{form.name || 'Your profile'}</h3>
+          <p>Complete your profile to improve job matches and tailor resumes faster.</p>
+          <div className="profile-checklist">
+            <span className={form.name ? 'complete' : ''}>Personal details</span>
+            <span className={form.targetRole ? 'complete' : ''}>Target role</span>
+            <span className={form.location ? 'complete' : ''}>Preferred location</span>
+          </div>
+        </aside>
+        <div className="panel-card">
+          <div className="panel-header"><div><h3>Profile details</h3><p className="text-muted mb-0">This information is used across your applications.</p></div></div>
 
         {error ? <div className="alert alert-danger">{error}</div> : null}
         {success ? <div className="alert alert-success">{success}</div> : null}
@@ -78,11 +92,11 @@ export default function ProfilePage() {
 
           <div className="col-md-12">
             <label className="form-label">Mobile</label>
-            <input className="form-control" name="mobile" value={form.mobile} onChange={handleChange} required />
+            <input className="form-control" name="mobile" value={form.mobile} onChange={handleChange} />
           </div>
           <div className="col-12"><hr /><h4 className="section-label">Job preferences</h4></div>
-          <div className="col-md-6"><label className="form-label">Target role</label><input className="form-control" name="targetRole" placeholder="e.g. Product designer" value={form.targetRole} onChange={handleChange} /></div>
-          <div className="col-md-6"><label className="form-label">Preferred location</label><input className="form-control" name="location" placeholder="e.g. Remote or New York" value={form.location} onChange={handleChange} /></div>
+          <div className="col-md-6"><label className="form-label">Target role</label><input className="form-control" name="targetRole" value={form.targetRole} onChange={handleChange} /></div>
+          <div className="col-md-6"><label className="form-label">Preferred location</label><input className="form-control" name="location" value={form.location} onChange={handleChange} /></div>
           <div className="col-md-6"><label className="form-label">Work mode</label><select className="form-select" name="workMode" value={form.workMode} onChange={handleChange}><option>Any</option><option>Remote</option><option>Hybrid</option><option>On-site</option></select></div>
 
           <div className="col-md-12 d-flex justify-content-end mt-3">
@@ -91,6 +105,7 @@ export default function ProfilePage() {
             </button>
           </div>
         </form>
+        </div>
       </div>
     </div>
   );

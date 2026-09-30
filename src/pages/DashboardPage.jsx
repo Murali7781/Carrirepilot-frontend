@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import DashboardStats from '../components/dashboard/DashboardStats';
 import CareerOverview from '../components/dashboard/CareerOverview';
 import ProfileSnapshot from '../components/dashboard/ProfileSnapshot';
@@ -20,8 +20,10 @@ export default function DashboardPage() {
     interviews: [],
     skillGaps: [],
     matches: [],
+    counts: { resumes: 0, saved_jobs: 0, applications: 0, interviews: 0, matches: 0 },
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const loadStarted = useRef(false);
 
   useEffect(() => {
@@ -34,13 +36,13 @@ export default function DashboardPage() {
         const summary = summaryResponse.data.data.summary || summaryResponse.data.data;
         setDashboard({
           resumes: summary.resumes || [],
-          jobs: summary.jobs || [],
-          interviews: summary.interviews || [],
+          jobs: summary.jobs || summary.recommendedJobs || [],
+          interviews: summary.interviews || summary.upcomingInterviews || [],
           skillGaps: summary.skillGaps || summary.skill_gaps || [],
           matches: summary.matches || [],
+          counts: summary.counts || {},
         });
       } catch (summaryError) {
-        if (![404, 405].includes(summaryError.response?.status)) console.error('Unable to load dashboard summary.', summaryError);
         try {
           const [resumeResponse, jobsResponse, interviewsResponse, gapsResponse, matchesResponse] = await Promise.all([
           api.get('/resumes'),
@@ -56,9 +58,16 @@ export default function DashboardPage() {
             interviews: interviewsResponse.data.data.interviews || [],
             skillGaps: gapsResponse.data.data.skills || [],
             matches: matchesResponse.data.data.matches || [],
+            counts: {
+              resumes: resumeResponse.data.data.resumes?.length || 0,
+              saved_jobs: 0,
+              applications: 0,
+              interviews: interviewsResponse.data.data.interviews?.length || 0,
+              matches: matchesResponse.data.data.matches?.length || 0,
+            },
           });
         } catch (error) {
-          console.error('Unable to load dashboard data.', error);
+          setError(error.response?.data?.message || summaryError.response?.data?.message || 'Some dashboard information is unavailable.');
         }
       } finally {
         setLoading(false);
@@ -106,7 +115,7 @@ export default function DashboardPage() {
             <div className="career-feature-label">workspace health</div>
             <div className="career-feature-line">
               <span className="feature-bullet" aria-hidden="true" />
-              <span>{dashboard.matches.length} match analyses and {dashboard.jobs.length} tracked roles are available in your workspace.</span>
+              <span>{dashboard.counts.applications || 0} applications and {dashboard.counts.saved_jobs || 0} saved roles are in your workspace.</span>
             </div>
 
             <div className="career-inline-card">
@@ -117,28 +126,30 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      {error ? <div className="alert alert-warning" role="status">{error}</div> : null}
+
       <DashboardStats
         profileProgress={profileProgress}
-        resumesCount={dashboard.resumes.length}
-        jobsCount={dashboard.jobs.length}
-        interviewsCount={dashboard.interviews.length}
+        resumesCount={dashboard.counts.resumes ?? dashboard.resumes.length}
+        applicationsCount={dashboard.counts.applications ?? 0}
+        interviewsCount={dashboard.counts.interviews ?? dashboard.interviews.length}
       />
 
-      <div className="row g-4">
-        <div className="col-lg-7">
+      <div className="dashboard-overview-grid">
+        <div className="dashboard-grid-column">
           <CareerOverview
             skillGapsCount={dashboard.skillGaps.length}
             matchesCount={dashboard.matches.length}
             resumesCount={dashboard.resumes.length}
           />
         </div>
-        <div className="col-lg-5">
+        <div className="dashboard-grid-column">
           <ProfileSnapshot profile={user} />
         </div>
       </div>
 
-      <div className="row g-4 mt-2">
-        <div className="col-lg-6">
+      <div className="dashboard-panels-grid">
+        <div className="dashboard-grid-column">
           <DashboardListPanel
             title="Latest skill gaps"
             items={dashboard.skillGaps.slice(0, 4)}
@@ -154,7 +165,7 @@ export default function DashboardPage() {
             )}
           />
         </div>
-        <div className="col-lg-6">
+        <div className="dashboard-grid-column">
           <DashboardListPanel
             title="Recent activity"
             items={dashboard.matches.slice(0, 4)}
@@ -172,8 +183,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="row g-4 mt-2">
-        <div className="col-lg-6">
+      <div className="dashboard-panels-grid">
+        <div className="dashboard-grid-column">
           <DashboardListPanel
             title="Resumes"
             items={dashboard.resumes.slice(0, 3)}
@@ -191,7 +202,7 @@ export default function DashboardPage() {
             )}
           />
         </div>
-        <div className="col-lg-6">
+        <div className="dashboard-grid-column">
           <DashboardListPanel
             title="Interviews"
             items={dashboard.interviews.slice(0, 3)}

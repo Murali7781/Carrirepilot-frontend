@@ -23,6 +23,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('careerpilot_token');
       localStorage.removeItem('careerpilot_user');
+      window.dispatchEvent(new Event('careerpilot:unauthorized'));
     }
 
     return Promise.reject(error);
