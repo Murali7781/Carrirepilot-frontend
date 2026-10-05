@@ -1,6 +1,6 @@
 # CareerPilot
 
-CareerPilot is a career-search workspace with profile management, resume storage and keyword checks, job search, saved roles, an application tracker, skills, interview practice, and a career coach.
+CareerPilot is an AI career-intelligence workspace: import or build a resume, compare it with a target job, review skill gaps and resume improvements, then prepare for that role’s interview. It also includes profile management, saved roles, application tracking, and career guidance.
 
 ## Run locally
 
@@ -57,14 +57,22 @@ Adzuna requires API credentials, attribution, and compliance with its current [A
 
 ## Career coach
 
-Without an AI provider configured, the coach gives local, workspace-aware guidance and labels itself as local guidance. To enable live OpenAI responses, configure both values in `server/.env`:
+The server uses the official OpenAI JavaScript SDK (`openai`, installed in the server package). Without an API key, the app gives clearly labeled local guidance and structured mock-interview questions/feedback; that fallback is not generative AI. To enable live OpenAI responses locally, create an API key in the OpenAI developer dashboard, then add it to the ignored `server/.env` file:
 
 ```env
 OPENAI_API_KEY=your-server-side-api-key
-OPENAI_MODEL=your-enabled-model
+OPENAI_MODEL=gpt-5-mini
 ```
 
-The API key stays on the server. When live AI is enabled, CareerPilot sends the user’s prompt and selected career context (target role, preferred location, resume title/summary/skills, skill gaps, and application count) to OpenAI. It does not send the raw uploaded PDF or account email. The interface explains the current mode. If the provider is unavailable, the coach labels its local fallback.
+The OpenAI SDK is installed with npm; an API key is an account credential and cannot be installed or purchased through npm. Never paste it into chat, source control, or a client `VITE_` variable. For cloud deployment, add it as a server-side secret in the hosting provider’s environment settings, then redeploy/restart the API. `AI_API_KEY` and `AI_MODEL` are also accepted aliases; `AI_API_URL` supports a compatible Responses API endpoint. Without a key, chat uses clearly labeled local workspace guidance. If a configured key or model fails, chat reports an actionable error instead of presenting local guidance as an AI answer; the backend logs only sanitized error metadata. The authenticated `/api/ai/status` endpoint reports whether a key is configured, not whether OpenAI has accepted it. Live resume review sends selected resume content and the target job description to OpenAI after contact details are removed from imported text. The original uploaded PDF is not sent.
+
+For OpenAI HTTP 429 errors, check the API project's billing, credits, spend limits, and model-specific RPM/TPM limits. Billing or quota limits must be resolved in the OpenAI platform; temporary rate limits require waiting and reducing request frequency. CareerPilot distinguishes these cases when OpenAI returns a recognized error code.
+
+## Existing resume workflow
+
+The Resumes workspace accepts text-based PDFs up to 8 MB and 20 pages. CareerPilot extracts searchable text, creates editable sections where it can recognize headings, and saves the extracted text and source filename in MySQL for later review. It does not retain the original PDF. Scanned PDFs need OCR before import. Review every imported field; PDF layout and section headings vary.
+
+Compare a saved resume with a saved job to create an ATS-style estimate, required/preferred skill coverage, and a persistent analysis record. The estimate uses job skill coverage and resume section completeness; it is not the result of an employer ATS or a hiring prediction. The same resume and role can seed a mock interview. OpenAI suggestions preserve the candidate’s facts and call out missing evidence instead of claiming new qualifications.
 
 The coach is guidance, not a source of verified job facts. Resume match scores are keyword/structure heuristics, not hiring predictions.
 

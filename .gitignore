@@ -9,6 +9,8 @@ node_modules/
 # Build output
 dist/
 build/
+client/Client/.careerpilot-build/
+client/Client/.npm-cache/
 
 # Logs
 *.log
