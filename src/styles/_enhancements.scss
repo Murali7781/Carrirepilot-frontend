@@ -1,0 +1,73 @@
+@use "./tokens" as *;
+
+:root {
+  --bg: #{$canvas};
+  --panel: #{$surface};
+  --surface: #f8faf9;
+  --text: #{$ink};
+  --muted: #{$muted};
+  --primary: #{$brand};
+  --primary-strong: #{$brand-deep};
+  --primary-soft: #{$brand-soft};
+  --accent: #173c32;
+  --success: #23845f;
+  --danger: #c7475a;
+  --border: #{$line};
+  --shadow: #{$shadow-card};
+  --shadow-raised: #{$shadow-hover};
+  --bs-primary: #{$brand};
+  --bs-primary-rgb: 31, 105, 89;
+  --bs-success: #23845f;
+  --bs-success-rgb: 35, 132, 95;
+  --bs-link-color: #{$brand};
+  --bs-link-hover-color: #{$brand-deep};
+}
+
+body { background: $canvas; color: $ink; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid rgba($brand, .38); outline-offset: 3px; }
+
+.btn-primary, .btn-success, .dashboard-primary-action, .resume-primary-button,
+.interview-primary-button, .auth-submit, .resume-cta {
+  --bs-btn-bg: #{$brand};
+  --bs-btn-border-color: #{$brand};
+  --bs-btn-hover-bg: #{$brand-deep};
+  --bs-btn-hover-border-color: #{$brand-deep};
+  --bs-btn-active-bg: #{$brand-deep};
+  --bs-btn-active-border-color: #{$brand-deep};
+  box-shadow: 0 5px 14px rgba($brand, .15);
+}
+
+.sidebar { background: rgba(255, 255, 255, .96); }
+.brand-mark, .auth-brand-mark, .profile-progress-track > span { background-color: $brand; }
+.nav-link.active { color: $brand; background: linear-gradient(100deg, #{$brand-soft}, #f4f8f5); box-shadow: inset 3px 0 $brand; }
+.nav-link.active svg, .resume-eyebrow, .eyebrow, .dashboard-overline,
+.auth-form-eyebrow, .auth-overline, .resume-step.active { color: $brand; }
+.resume-step.active .resume-step-number, .resume-primary-button { border-color: $brand; background-color: $brand; }
+.resume-score-ring { background: conic-gradient($brand var(--score-value), #e9eee9 var(--score-value)); }
+.resume-score-ring strong { color: $brand-deep; }
+.auth-story-panel { background: radial-gradient(circle at 85% 12%, rgba(153, 197, 172, .3), transparent 29%), linear-gradient(145deg, #f7faf8, #eef5f0 75%, #e7f1ea); }
+.company-avatar, .interview-icon, .interview-empty-icon, .resume-import-icon, .profile-card-icon { color: $brand; }
+
+.card, .dropdown-menu, .modal-content, .offcanvas {
+  border-color: $line;
+  border-radius: $radius-card;
+  box-shadow: $shadow-card;
+}
+
+.form-control:focus, .form-select:focus { @include focus-ring(); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .dashboard-stat-card, .job-card, .saved-job-card, .interview-session-card,
+  .resume-library-card, .application-tracker-card {
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    &:hover { transform: translateY(-2px); box-shadow: $shadow-hover; border-color: rgba($brand, .22); }
+  }
+}
+
+@media (max-width: 767.98px) {
+  .container, .container-fluid { --bs-gutter-x: 1.15rem; }
+  .page-heading, .dashboard-page-header { gap: .75rem; }
+  .dashboard-stat-card, .resume-library-card, .job-card { min-width: 0; }
+  .table-responsive { border-radius: .8rem; }
+}

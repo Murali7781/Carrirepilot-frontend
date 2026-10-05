@@ -4,15 +4,22 @@
   --surface: #f5f8fb;
   --text: #172235;
   --muted: #68768a;
-  --primary: #19c596;
-  --primary-strong: #0fa67f;
-  --primary-soft: rgba(25, 197, 150, 0.14);
-  --accent: #112d35;
+  --primary: #1f6959;
+  --primary-strong: #185443;
+  --primary-soft: rgba(31, 105, 89, 0.13);
+  --accent: #193b34;
   --success: #25c99a;
   --danger: #f16d83;
   --border: rgba(31, 52, 78, 0.12);
   --shadow: 0 12px 28px rgba(31, 52, 78, 0.08);
 }
+
+/* Shared CareerPilot brand color across auth, resume, dashboard, and role flows. */
+.auth-form-eyebrow,.auth-overline,.auth-art-check,.auth-story-footer>svg,.auth-brand-mark{color:#1f6959}
+.auth-form-modern input:focus,.auth-modern-form input:focus{border-color:#6c9e88;box-shadow:0 0 0 3px rgba(31,105,89,.12)}
+.auth-password-wrap button:hover{background:#eef6f1;color:#1f6959}
+.auth-submit,.auth-brand-mark{background:#1f6959;color:#fff}.auth-submit:hover{background:#185443}.auth-switch a,.auth-story-footer a{color:#286c56}.auth-security-note svg{color:#468365}.auth-story-panel{background:#f4f8f5;border-color:#e8efeb}.auth-art-wrap:before{background:#e8f1eb}.auth-art-check{background:#eaf5ef}
+.resume-eyebrow{color:#34765e}.resume-step.active{color:#286d56}.resume-step.active .resume-step-number,.resume-primary-button{border-color:#1f6959;background:#1f6959;color:#fff}.resume-primary-button:hover{background:#185443}.resume-field input:focus,.resume-field textarea:focus{border-color:#75a58f;box-shadow:0 0 0 3px rgba(31,105,89,.11)}.resume-builder-aside{border-color:#e3ece6;background:#f6faf7}.resume-aside-icon,.resume-library-card-icon{background:#eaf5ef;color:#347a60}.resume-aside-progress>div>span{background:#438466}.resume-add-button{border-color:#b9d1c2;background:#f7fbf8;color:#34765e}.resume-add-button:hover{background:#eaf5ef}.resume-skill-preview span,.resume-card-skills span{background:#edf6f0;color:#3e755a}.resume-review-head{border-color:#397a5f}.resume-review-avatar{background:#eaf5ef;color:#397a5f}.resume-review-paper h5,.resume-library-actions button{color:#34765e}.resume-library-actions button{background:#edf6f0}.resume-library-actions button:hover{background:#e2f0e7}.resume-library-empty svg{color:#5c9677}
 
 * { box-sizing: border-box; }
 
@@ -573,7 +580,7 @@ button, input, textarea, select {
   padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: 9px;
-  background: rgba(22, 34, 55, 0.68);
+  background: var(--panel);
   color: var(--text);
 }
 

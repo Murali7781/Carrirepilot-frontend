@@ -1,44 +1,26 @@
 import api from './api';
 
-const savedJobsKey = 'careerpilot_saved_jobs';
-
 export async function getJobs() {
-  const response = await api.get('/jobs');
+  const response = await api.get('/jobs', { params: { limit: 100 } });
   return response.data.data.jobs || [];
 }
 
 export async function saveJob(jobId) {
-  try {
-    const response = await api.post('/saved-jobs', { jobId });
-    return response.data.data?.savedJob || { job_id: jobId };
-  } catch (error) {
-    if (error.response?.status !== 404 && error.response?.status !== 405) throw error;
-    const saved = JSON.parse(localStorage.getItem(savedJobsKey) || '[]');
-    const next = saved.includes(String(jobId)) ? saved : [...saved, String(jobId)];
-    localStorage.setItem(savedJobsKey, JSON.stringify(next));
-    return { id: jobId, localOnly: true };
-  }
+  const response = await api.post('/saved-jobs', { jobId });
+  return response.data.data?.savedJob || { job_id: jobId };
 }
 
 export async function unsaveJob(jobId, savedJobId = null) {
-  try {
-    if (savedJobId) {
-      await api.delete(`/saved-jobs/${savedJobId}`);
-    } else {
-      const savedJobs = await getSavedJobs();
-      const savedJob = savedJobs.find((item) => String(item.job_id) === String(jobId));
-      if (savedJob) await api.delete(`/saved-jobs/${savedJob.id}`);
-    }
-  } catch (error) {
-    if (error.response?.status !== 404 && error.response?.status !== 405) throw error;
-  }
-
-  const saved = JSON.parse(localStorage.getItem(savedJobsKey) || '[]');
-  localStorage.setItem(savedJobsKey, JSON.stringify(saved.filter((id) => id !== String(jobId))));
+  if (savedJobId) return api.delete(`/saved-jobs/${savedJobId}`);
+  const savedJobs = await getSavedJobs();
+  const savedJob = savedJobs.find((item) => String(item.job_id) === String(jobId));
+  if (savedJob) return api.delete(`/saved-jobs/${savedJob.id}`);
+  return null;
 }
 
-export function getLocalSavedJobIds() {
-  return JSON.parse(localStorage.getItem(savedJobsKey) || '[]');
+export async function createJob(payload) {
+  const response = await api.post('/jobs', payload);
+  return response.data.data.job;
 }
 
 export async function getSavedJobs() {
