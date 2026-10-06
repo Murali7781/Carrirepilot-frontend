@@ -1,0 +1,19 @@
+@use "sass:color";
+$brand: #1f6959;
+$brand-deep: #185443;
+$brand-soft: #eaf5ef;
+$ink: #172235;
+$muted: #68768a;
+$canvas: #f5f8f7;
+$line: #e4ece7;
+$surface: #fff;
+$radius-card: 1rem;
+$shadow-card: 0 10px 30px rgba(22, 51, 40, .07);
+$shadow-hover: 0 18px 38px rgba(22, 51, 40, .12);
+
+@mixin focus-ring($color: $brand) {
+  outline: 0;
+  border-color: color.mix(white, $color, 35%);
+  box-shadow: 0 0 0 .22rem rgba($color, .15);
+}
+

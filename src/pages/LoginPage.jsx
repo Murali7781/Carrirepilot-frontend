@@ -1,81 +1,48 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/useAuth';
+import { FiArrowUpRight, FiCheck, FiEye, FiEyeOff, FiLock } from 'react-icons/fi';
+import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [form, setForm] = useState({ email: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleChange = (event) => {
-    setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
-  };
-
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setLoading(true);
-    setError('');
-
+    setLoading(true); setError('');
     try {
       await login(form);
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to sign in right now.');
-    } finally {
-      setLoading(false);
-    }
+      setError(err.response?.data?.message || 'Unable to sign in right now. Please try again.');
+    } finally { setLoading(false); }
   };
 
-  return (
-    <div className="auth-shell">
-      <div className="auth-card">
-        <div className="auth-badge">CareerPilot</div>
-        <h2>Welcome back</h2>
-        <p>Sign in to manage your career roadmap and opportunities.</p>
-
-        {error ? <div className="alert alert-danger">{error}</div> : null}
-
-        <form onSubmit={handleSubmit} className="auth-form" autoComplete="on">
-          <div className="mb-3">
-            <label className="form-label" htmlFor="login-email">Email</label>
-            <input
-              id="login-email"
-              type="email"
-              className="form-control"
-              name="email"
-              autoComplete="username"
-              inputMode="email"
-              value={form.email}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <div className="mb-3">
-            <label className="form-label" htmlFor="login-password">Password</label>
-            <input
-              id="login-password"
-              type="password"
-              className="form-control"
-              name="password"
-              autoComplete="current-password"
-              value={form.password}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <button type="submit" className="btn btn-primary w-100" disabled={loading}>
-            {loading ? 'Signing in...' : 'Login'}
-          </button>
+  return <main className="auth-shell auth-modern">
+    <aside className="auth-story-panel">
+      <div className="auth-art-heading"><span className="auth-overline">YOUR NEXT MOVE, MADE CLEAR</span><h1>Make your next career move with confidence.</h1><p>Keep your goals, applications, and interview practice together in one focused workspace.</p></div>
+      <div className="auth-art-wrap"><img src="https://images.unsplash.com/photo-1758518730327-98070967caab?auto=format&fit=crop&w=1200&q=85" alt="A career conversation as a professional reviews a resume" loading="eager" /><div className="auth-art-caption"><span className="auth-art-check"><FiCheck /></span><span><strong>Your experience, clearly presented</strong><small>Build a stronger next step with CareerPilot</small></span></div></div>
+    </aside>
+    <section className="auth-form-panel">
+      <div className="auth-mobile-brand"><span className="auth-brand-mark">C</span> CareerPilot</div>
+      <div className="auth-form-content">
+        <div className="auth-form-eyebrow"><FiLock /> SECURE SIGN IN</div>
+        <h2>Welcome back</h2><p className="auth-intro">Sign in to pick up where your career journey left off.</p>
+        {error ? <div className="auth-error" role="alert">{error}</div> : null}
+        <form onSubmit={handleSubmit} className="auth-form auth-modern-form" autoComplete="on">
+          <label htmlFor="login-email">Email address</label>
+          <input id="login-email" type="email" name="email" autoComplete="username" inputMode="email" maxLength={255} value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} required />
+          <div className="auth-password-label"><label htmlFor="login-password">Password</label></div>
+          <div className="auth-password-wrap"><input id="login-password" type={showPassword ? 'text' : 'password'} name="password" autoComplete="current-password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} required /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <FiEyeOff /> : <FiEye />}</button></div>
+          <button type="submit" className="auth-submit" disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}<FiArrowUpRight /></button>
         </form>
-
-        <p className="auth-footer text-center">
-          New here? <Link to="/register">Create account</Link>
-        </p>
+        <p className="auth-switch">New to CareerPilot? <Link to="/register">Create your account</Link></p>
       </div>
-    </div>
-  );
+      <footer className="auth-form-footer">CareerPilot <span>·</span> Career planning, made practical</footer>
+    </section>
+  </main>;
 }

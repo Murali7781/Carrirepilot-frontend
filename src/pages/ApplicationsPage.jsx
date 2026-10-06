@@ -1,92 +1,51 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { FiActivity, FiArrowRight, FiBriefcase, FiCalendar, FiExternalLink, FiFileText, FiSave } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
-import { FiArrowUpRight, FiCalendar, FiCheckCircle, FiClock, FiSend } from 'react-icons/fi';
 import api from '../services/api';
 
 const statuses = ['applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
-const readable = (status) => status.charAt(0).toUpperCase() + status.slice(1);
+const dateValue = (value) => value ? String(value).slice(0, 10) : '';
 
 export default function ApplicationsPage() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [savingId, setSavingId] = useState(null);
   const [notice, setNotice] = useState('');
-
-  const load = async () => {
-    try {
-      const response = await api.get('/applications');
-      setApplications(response.data.data.applications || []);
-      setError('');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Your application tracker could not load. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [savingId, setSavingId] = useState(null);
 
   useEffect(() => {
     let active = true;
-    api.get('/applications').then((response) => {
-      if (active) setApplications(response.data.data.applications || []);
-    }).catch((err) => {
-      if (active) setError(err.response?.data?.message || 'Your application tracker could not load. Please try again.');
-    }).finally(() => {
-      if (active) setLoading(false);
-    });
+    api.get('/applications')
+      .then((response) => { if (active) setApplications(response.data?.data?.applications || []); })
+      .catch((err) => { if (active) setError(err.response?.data?.message || 'Unable to load your application tracker.'); })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
 
-  const counts = useMemo(() => statuses.reduce((total, status) => ({
-    ...total,
-    [status]: applications.filter((item) => item.status === status).length,
-  }), {}), [applications]);
-  const visible = filter === 'all' ? applications : applications.filter((item) => item.status === filter);
-
-  const updateApplication = async (application, changes) => {
-    setSavingId(application.id);
-    setNotice('');
-    setError('');
+  const updateField = (id, field, value) => setApplications((items) => items.map((item) => Number(item.id) === Number(id) ? { ...item, [field]: value } : item));
+  const saveApplication = async (application) => {
+    setSavingId(application.id); setError(''); setNotice('');
     try {
-      const response = await api.put(`/applications/${application.id}`, changes);
-      const updated = response.data.data.application;
-      setApplications((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
-      setNotice('Application updated.');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Unable to update this application.');
-    } finally {
-      setSavingId(null);
-    }
+      const response = await api.put(`/applications/${application.id}`, { status: application.status, next_action_date: application.next_action_date || null, notes: application.notes || '' });
+      const saved = response.data?.data?.application;
+      setApplications((items) => items.map((item) => Number(item.id) === Number(application.id) ? { ...item, ...saved } : item));
+      setNotice(`Tracker updated for ${application.job_title || 'this role'}.`);
+    } catch (err) { setError(err.response?.data?.message || 'Unable to save this application update.'); }
+    finally { setSavingId(null); }
   };
 
-  if (loading) return <div className="page-loading">Loading your application tracker…</div>;
+  if (loading) return <div className="page-loading" role="status">Loading application tracker…</div>;
+  const activeCount = applications.filter((item) => !['offer', 'rejected', 'withdrawn'].includes(item.status)).length;
 
-  return <div className="page-section applications-page">
-    <header className="page-heading"><div><div className="eyebrow">Your pipeline</div><h2>Applications</h2><p>Track roles you have applied to, update progress, and keep your next action visible.</p></div><Link className="btn btn-primary" to="/jobs">Find roles</Link></header>
-
-    <section className="application-explainer panel-card">
-      <div className="application-explainer-icon"><FiSend /></div>
-      <div><strong>How this tracker works</strong><p>Use “Track application” on a role after you apply on the employer’s site. CareerPilot records the role here; it does not submit applications for you. Update the status and follow-up date as you hear back.</p></div>
-    </section>
-
-    {error ? <div className="alert alert-danger" role="alert">{error}<button className="btn btn-sm btn-outline-danger ms-2" type="button" onClick={load}>Retry</button></div> : null}
-    {notice ? <div className="alert alert-success" role="status">{notice}</div> : null}
-
-    <div className="application-summary-grid">
-      <article className="application-summary panel-card"><span>Total tracked</span><strong>{applications.length}</strong><small>Roles in your pipeline</small></article>
-      <article className="application-summary panel-card"><span>In progress</span><strong>{(counts.applied || 0) + (counts.screening || 0) + (counts.interview || 0)}</strong><small>Applied, screening, or interviewing</small></article>
-      <article className="application-summary panel-card"><span>Offers</span><strong>{counts.offer || 0}</strong><small>Offer stage</small></article>
-    </div>
-
-    <section className="panel-card application-list-panel">
-      <div className="application-list-heading"><div><span className="eyebrow">Pipeline</span><h3>Your tracked roles</h3></div><label className="application-filter-label">Filter <select className="form-select" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{readable(status)}</option>)}</select></label></div>
-      {visible.length ? <div className="application-list">{visible.map((application) => <article className="application-card" key={application.id}>
-        <div className="application-card-top"><div className="application-job-icon">{String(application.title || application.job_title || 'R').slice(0, 1).toUpperCase()}</div><div className="application-role"><h4>{application.title || application.job_title || 'Job application'}</h4><p>{application.company || 'Company not listed'}</p></div><label className="application-status-control"><span>Status</span><select className={`form-select status-${application.status}`} value={application.status || 'applied'} disabled={savingId === application.id} onChange={(event) => updateApplication(application, { status: event.target.value })}>{statuses.map((status) => <option key={status} value={status}>{readable(status)}</option>)}</select></label></div>
-        <div className="application-card-meta"><span><FiCalendar /> Added {new Date(application.created_at).toLocaleDateString()}</span>{application.next_action_date ? <span><FiClock /> Follow up {new Date(`${String(application.next_action_date).slice(0, 10)}T12:00:00`).toLocaleDateString()}</span> : <span><FiClock /> No follow-up date</span>}</div>
-        <div className="application-edit-grid"><label>Next follow-up date<input className="form-control" type="date" value={application.next_action_date ? String(application.next_action_date).slice(0, 10) : ''} onChange={(event) => updateApplication(application, { next_action_date: event.target.value || null })} /></label><label>Notes<textarea className="form-control" rows="2" maxLength="2000" defaultValue={application.notes || ''} onBlur={(event) => { if (event.target.value !== (application.notes || '')) updateApplication(application, { notes: event.target.value }); }} /></label></div>
-        <div className="application-card-footer"><span>{savingId === application.id ? 'Saving…' : <><FiCheckCircle /> Changes save to your tracker</>}</span>{application.apply_url ? <a href={application.apply_url} target="_blank" rel="noreferrer noopener">Original posting <FiArrowUpRight /></a> : null}</div>
-      </article>)}</div> : <div className="applications-empty"><div className="empty-icon"><FiSend /></div><h3>{applications.length ? 'No roles in this status' : 'Your tracker is ready'}</h3><p>{applications.length ? 'Choose another status filter to see more roles.' : 'After applying on an employer site, return to Find jobs and choose Track application. The role will appear here.'}</p>{!applications.length ? <Link to="/jobs" className="btn btn-primary">Explore jobs</Link> : null}</div>}
-    </section>
+  return <div className="page-section applications-workspace">
+    <div className="page-heading"><div><div className="eyebrow">YOUR JOB SEARCH PIPELINE</div><h2>Applications</h2><p>Record what you submitted externally, manage each stage, and plan the next follow-up.</p></div><Link to="/jobs" className="applications-add-link"><FiBriefcase /> Find roles</Link></div>
+    {error ? <div className="alert alert-danger" role="alert">{error}</div> : null}{notice ? <div className="alert alert-success" role="status">{notice}</div> : null}
+    <div className="application-summary-row"><div><span>Tracked roles</span><strong>{applications.length}</strong></div><div><span>Active pipeline</span><strong>{activeCount}</strong></div><div><span>Interview stage</span><strong>{applications.filter((item) => item.status === 'interview').length}</strong></div><div><span>Offers</span><strong>{applications.filter((item) => item.status === 'offer').length}</strong></div></div>
+    {applications.length ? <section className="application-tracker-list" aria-label="Tracked applications">{applications.map((application) => <article className="application-tracker-card" key={application.id}>
+      <div className="application-tracker-heading"><span className="application-company-mark"><FiBriefcase /></span><div className="application-role-title"><h3>{application.job_title || 'Saved role'}</h3><p>{[application.company, application.location].filter(Boolean).join(' · ') || 'Company details not listed'}</p></div><span className={`application-status-label status-${application.status}`}>{application.status}</span></div>
+      <div className="application-tracker-fields"><label>Current stage<select value={application.status} onChange={(event) => updateField(application.id, 'status', event.target.value)}>{statuses.map((status) => <option value={status} key={status}>{status.replace(/\b\w/g, (letter) => letter.toUpperCase())}</option>)}</select></label><label>Next follow-up <span>Optional reminder</span><input type="date" value={dateValue(application.next_action_date)} onChange={(event) => updateField(application.id, 'next_action_date', event.target.value)} /></label><label className="application-notes-field">Notes <span>Visible only in your workspace</span><input type="text" maxLength={2000} value={application.notes || ''} onChange={(event) => updateField(application.id, 'notes', event.target.value)} placeholder="Recruiter, follow-up, or interview notes" /></label></div>
+      <div className="application-tracker-footer"><small>Added {application.created_at ? new Date(application.created_at).toLocaleDateString() : 'recently'}{application.interview_date ? ` · Interview ${new Date(application.interview_date).toLocaleString()}` : ''}</small><div><Link to={`/jobs/${application.job_id}`}><FiExternalLink /> Role details</Link><Link to={`/interviews?jobId=${application.job_id}`}><FiActivity /> Practice</Link><button type="button" onClick={() => saveApplication(application)} disabled={savingId === application.id}><FiSave /> {savingId === application.id ? 'Saving…' : 'Save changes'}</button></div></div>
+    </article>)}</section> : <section className="application-empty panel-card"><span className="application-empty-icon"><FiFileText /></span><h3>Start your application tracker</h3><p>Save a real role, apply on the employer’s website, then return to the role page and choose “Mark as applied”. CareerPilot keeps your progress and reminders here.</p><Link to="/jobs" className="interview-primary-button">Browse roles <FiArrowRight /></Link><small>CareerPilot does not submit applications to employers.</small></section>}
+    {applications.length ? <p className="application-tracker-note"><FiCalendar /> Use follow-up reminders to keep your pipeline current. “Mark as applied” only records your status after you apply on the employer’s site.</p> : null}
   </div>;
 }
