@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiArrowUpRight, FiCheck, FiEye, FiEyeOff, FiLock } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
+import { getApiErrorMessage } from '../services/api';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ export default function LoginPage() {
       await login(form);
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to sign in right now. Please try again.');
+      setError(getApiErrorMessage(err, 'Unable to sign in right now. Please try again.'));
     } finally { setLoading(false); }
   };
 

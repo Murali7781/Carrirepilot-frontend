@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiArrowUpRight, FiCheck, FiEye, FiEyeOff, FiLock } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
+import { getApiErrorMessage } from '../services/api';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ export default function RegisterPage() {
       await register(form);
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to create your account. Please try again.');
+      setError(getApiErrorMessage(err, 'Unable to create your account. Please try again.'));
     } finally { setLoading(false); }
   };
 
