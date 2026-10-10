@@ -20,7 +20,7 @@ export default function LoginPage() {
     try {
       const user = await login(form);
       const role = String(user?.role || '').toLowerCase();
-      navigate(['candidate', 'admin'].includes(role) ? '/dashboard' : '/profile', { replace: true });
+      navigate(role === 'recruiter' ? '/jobs' : '/dashboard', { replace: true });
     } catch (err) {
       setError(getApiErrorMessage(err, 'Unable to sign in right now. Please try again.'));
     } finally { setLoading(false); }

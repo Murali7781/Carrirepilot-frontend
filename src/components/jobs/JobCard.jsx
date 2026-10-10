@@ -13,6 +13,7 @@ const parseSkills = (value) => {
 export default function JobCard({ job, saved, application, onSave, onApply, applying, sourceMode }) {
   const skills = parseSkills(job.required_skills);
 
+
   return (
     <article className="job-card">
       <div className="job-card-main">

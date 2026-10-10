@@ -17,6 +17,14 @@ export default function RegisterPage() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (loading || authLoading) return;
+    if (form.password.length !== 8) {
+      setPasswordError('Password must be exactly 8 characters.');
+      return;
+    }
+    if (form.confirmPassword.length !== 8) {
+      setPasswordError('Password confirmation must be exactly 8 characters.');
+      return;
+    }
     const mobileDigits = form.mobile.replace(/\D/g, '').length;
     if (form.mobile && (mobileDigits < 7 || mobileDigits > 15)) {
       setError('Enter a valid mobile number with 7 to 15 digits.');
@@ -55,10 +63,10 @@ export default function RegisterPage() {
           <label htmlFor="register-email">Email address</label><input id="register-email" type="email" name="email" autoComplete="email" inputMode="email" maxLength={255} value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} required />
           <label htmlFor="register-mobile">Mobile number <span className="auth-optional">Optional</span></label><input id="register-mobile" type="tel" name="mobile" autoComplete="tel" inputMode="tel" pattern="[+]?(?:[0-9]|[(][0-9]{1,4}[)])[0-9 ().-]*[0-9]" title="Use 7 to 15 digits; spaces, parentheses, dots, dashes, and a leading plus are allowed." maxLength={20} value={form.mobile} onChange={(event) => setForm((current) => ({ ...current, mobile: event.target.value }))} />
           <label htmlFor="register-password">Password</label>
-          <div className="auth-password-wrap"><input id="register-password" type={showPassword ? 'text' : 'password'} name="password" autoComplete="new-password" minLength={12} maxLength={72} value={form.password} onChange={(event) => { const password = event.target.value; setForm((current) => ({ ...current, password })); setPasswordError(form.confirmPassword && password !== form.confirmPassword ? 'Passwords do not match.' : ''); }} required /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <FiEyeOff /> : <FiEye />}</button></div>
-          <small className="auth-password-hint">Use at least 12 characters. A memorable passphrase works well.</small>
+          <div className="auth-password-wrap"><input id="register-password" type={showPassword ? 'text' : 'password'} name="password" autoComplete="new-password" minLength={8} maxLength={8} value={form.password} onChange={(event) => { const password = event.target.value; setForm((current) => ({ ...current, password })); setPasswordError(password && password.length !== 8 ? 'Password must be exactly 8 characters.' : form.confirmPassword && password !== form.confirmPassword ? 'Passwords do not match.' : ''); }} required /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <FiEyeOff /> : <FiEye />}</button></div>
+          <small className="auth-password-hint">Use exactly 8 characters.</small>
           <label htmlFor="register-confirm-password">Confirm password</label>
-          <div className="auth-password-wrap"><input id="register-confirm-password" type={showPassword ? 'text' : 'password'} name="confirmPassword" autoComplete="new-password" minLength={12} maxLength={72} value={form.confirmPassword || ''} aria-invalid={Boolean(passwordError)} aria-describedby={passwordError ? 'register-password-error' : undefined} onChange={(event) => { const confirmPassword = event.target.value; setForm((current) => ({ ...current, confirmPassword })); setPasswordError(confirmPassword && confirmPassword !== form.password ? 'Passwords do not match.' : ''); }} required /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <FiEyeOff /> : <FiEye />}</button></div>
+          <div className="auth-password-wrap"><input id="register-confirm-password" type={showPassword ? 'text' : 'password'} name="confirmPassword" autoComplete="new-password" minLength={8} maxLength={8} value={form.confirmPassword || ''} aria-invalid={Boolean(passwordError)} aria-describedby={passwordError ? 'register-password-error' : undefined} onChange={(event) => { const confirmPassword = event.target.value; setForm((current) => ({ ...current, confirmPassword })); setPasswordError(confirmPassword && confirmPassword.length !== 8 ? 'Password confirmation must be exactly 8 characters.' : confirmPassword && confirmPassword !== form.password ? 'Passwords do not match.' : ''); }} required /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <FiEyeOff /> : <FiEye />}</button></div>
           {passwordError ? <small id="register-password-error" className="auth-password-hint" role="alert">{passwordError}</small> : null}
           <button type="submit" className="auth-submit" disabled={loading || authLoading}>{authLoading ? 'Checking session…' : loading ? 'Creating account…' : 'Create account'}<FiArrowUpRight /></button>
         </form>

@@ -20,7 +20,7 @@ export function PublicRoute({ children }) {
 
   if (user) {
     const role = String(user.role || '').toLowerCase();
-    return <Navigate to={['candidate', 'admin'].includes(role) ? '/dashboard' : '/profile'} replace />;
+    return <Navigate to={role === 'recruiter' ? '/jobs' : '/dashboard'} replace />;
   }
 
   return children;

@@ -32,10 +32,10 @@ export default function App() {
 
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/jobs" element={<RoleRoute allowedRoles={['candidate', 'admin', 'recruiter']}><JobsPage /></RoleRoute>} />
                 <Route element={<RoleRoute allowedRoles={['candidate', 'admin']} />}>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/resumes" element={<ResumesPage />} />
-                  <Route path="/jobs" element={<JobsPage />} />
                   <Route path="/jobs/:id" element={<JobDetailPage />} />
                   <Route path="/applications" element={<ApplicationsPage />} />
                   <Route path="/saved-jobs" element={<SavedJobsPage />} />

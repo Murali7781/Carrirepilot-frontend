@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "../context/AuthContext";
 import { FiChevronLeft, FiChevronRight, FiPlus, FiSearch, FiSliders } from "react-icons/fi";
 import JobCard from "../components/jobs/JobCard";
 import "../styles/jobs.scss";
@@ -32,6 +33,8 @@ const getSavedJobState = (items) => ({
 });
 
 export default function JobsPage() {
+  const { user } = useAuth();
+  const isRecruiter = String(user?.role || '').toLowerCase() === 'recruiter';
   const [jobs, setJobs] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -231,7 +234,7 @@ export default function JobsPage() {
       setRoleForm(emptyRole);
       setShowRoleForm(false);
       setNotice(
-        "Role added to your workspace. CareerPilot has not applied to it for you.",
+        isRecruiter ? 'Posting saved to your private workspace. It has not been published to a job board.' : "Role added to your workspace. CareerPilot has not applied to it for you.",
       );
     } catch (error) {
       setNotice(
@@ -254,11 +257,12 @@ export default function JobsPage() {
     <div className="page-section">
       <div className="page-heading jobs-heading">
         <div>
-          <div className="eyebrow">Your job workspace</div>
-          <h2>Find and track roles</h2>
+          <div className="eyebrow">{isRecruiter ? 'Recruiter workspace' : 'Your job workspace'}</div>
+          <h2>{isRecruiter ? 'Manage your job postings' : 'Find and track roles'}</h2>
           <p>
-            Search live listings, save opportunities, compare them with your resume,
-            and keep your application pipeline organized.
+            {isRecruiter
+              ? 'Create and review job descriptions saved to your own account. Candidate applications and resumes are not available here.'
+              : 'Search live listings, save opportunities, compare them with your resume, and keep your application pipeline organized.'}
           </p>
         </div>
         {sourceMode === "workspace" ? <div className="job-workspace-actions"><button
@@ -269,7 +273,7 @@ export default function JobsPage() {
             setNotice("");
           }}
         >
-          <FiPlus /> {showRoleForm ? "Close form" : "Add a role"}
+          <FiPlus /> {showRoleForm ? "Close form" : isRecruiter ? "Create a posting" : "Add a role"}
         </button></div> : null}
       </div>
       {notice ? (
@@ -428,10 +432,10 @@ export default function JobsPage() {
         </section>
       ) : null}
       <div className="panel-card job-search-panel">
-        <div className="job-source-tabs" role="tablist" aria-label="Job listing source">
+        {!isRecruiter ? <div className="job-source-tabs" role="tablist" aria-label="Job listing source">
           <button type="button" role="tab" aria-selected={sourceMode === "live"} className={sourceMode === "live" ? "active" : ""} onClick={() => switchSource("live")}>Live jobs</button>
           <button type="button" role="tab" aria-selected={sourceMode === "workspace"} className={sourceMode === "workspace" ? "active" : ""} onClick={() => switchSource("workspace")}>My roles</button>
-        </div>
+        </div> : null}
         <form className="job-search-row" onSubmit={searchRoles}>
           <div className="search-field">
             <FiSearch />
@@ -467,7 +471,12 @@ export default function JobsPage() {
         {liveLoading ? <div className="page-loading" role="status">Searching live listings…</div> : null}
         <div className="job-list">
           {!liveLoading && filteredJobs.length ? (
-            filteredJobs.map((job) => (
+            filteredJobs.map((job) => isRecruiter ? (
+              <article className="panel-card recruiter-job-card" key={job.id}>
+                <div><span className="eyebrow">Private job posting</span><h3>{job.title}</h3><p>{[job.company, job.location].filter(Boolean).join(' · ') || 'Company and location not provided'}</p></div>
+                {job.source_url ? <a href={job.source_url} target="_blank" rel="noreferrer">View source posting</a> : null}
+              </article>
+            ) : (
               <JobCard
                 key={job.id}
                 job={job}
@@ -484,15 +493,15 @@ export default function JobsPage() {
               <h3>
                 {search
                   ? "No matching roles"
-                  : sourceMode === "live" ? "Search live job listings" : "No roles in your workspace yet"}
+                  : sourceMode === "live" ? "Search live job listings" : isRecruiter ? "No job postings yet" : "No roles in your workspace yet"}
               </h3>
               <p>
                 {search
                   ? "Try a different search term."
-                  : sourceMode === "live" ? "Enter a job title or keyword, then search to find current opportunities." : "Add a job posting you found, or search live listings to explore current opportunities."}
+                  : sourceMode === "live" ? "Enter a job title or keyword, then search to find current opportunities." : isRecruiter ? "Create your first private job posting to get started." : "Add a job posting you found, or search live listings to explore current opportunities."}
               </p>
               {!search && sourceMode === "workspace" ? (
-                <div className="empty-job-actions"><button type="button" className="btn btn-primary btn-sm" onClick={() => setShowRoleForm(true)}><FiPlus /> Add your first role</button></div>
+                <div className="empty-job-actions"><button type="button" className="btn btn-primary btn-sm" onClick={() => setShowRoleForm(true)}><FiPlus /> {isRecruiter ? "Create your first posting" : "Add your first role"}</button></div>
               ) : null}
             </div>
           ) : null}
