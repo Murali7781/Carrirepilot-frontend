@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiPlus, FiSearch, FiSliders } from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight, FiPlus, FiSearch, FiSliders } from "react-icons/fi";
 import JobCard from "../components/jobs/JobCard";
-import api from "../services/api";
+import "../styles/jobs.scss";
 import {
   applyToJob,
   createJob,
   getJobs,
-  getSavedJobs,
+  searchLiveJobs,
   saveJob,
   unsaveJob,
 } from "../services/jobsService";
@@ -26,6 +26,10 @@ const splitSkills = (value) =>
     .split(",")
     .map((skill) => skill.trim())
     .filter(Boolean);
+const getSavedJobState = (items) => ({
+  ids: items.filter((job) => job.saved_job_id).map((job) => String(job.id)),
+  records: Object.fromEntries(items.filter((job) => job.saved_job_id).map((job) => [String(job.id), job.saved_job_id])),
+});
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState([]);
@@ -37,27 +41,31 @@ export default function JobsPage() {
   const [applyingId, setApplyingId] = useState(null);
   const [notice, setNotice] = useState("");
   const [sort, setSort] = useState("recent");
+  const [sourceMode, setSourceMode] = useState("workspace");
+  const [location, setLocation] = useState("");
+  const [country, setCountry] = useState("in");
+  const [livePage, setLivePage] = useState(1);
+  const [liveTotal, setLiveTotal] = useState(0);
+  const [liveLoading, setLiveLoading] = useState(false);
   const [showRoleForm, setShowRoleForm] = useState(false);
   const [roleForm, setRoleForm] = useState(emptyRole);
   const [savingRole, setSavingRole] = useState(false);
 
   useEffect(() => {
     let active = true;
-    Promise.all([getJobs(), getSavedJobs(), api.get("/applications")])
-      .then(([jobList, savedJobs, applicationResponse]) => {
+    getJobs()
+      .then((jobList) => {
         if (!active) return;
         setJobs(Array.isArray(jobList) ? jobList : []);
-        setSavedIds(savedJobs.map((savedJob) => String(savedJob.job_id)));
-        setSavedJobRecords(
-          Object.fromEntries(
-            savedJobs.map((savedJob) => [String(savedJob.job_id), savedJob.id]),
-          ),
-        );
+        const savedState = getSavedJobState(jobList);
+        setSavedIds(savedState.ids);
+        setSavedJobRecords(savedState.records);
         setApplicationsByJob(
           Object.fromEntries(
-            (applicationResponse.data?.data?.applications || []).map(
-              (application) => [String(application.job_id), application],
-            ),
+            jobList.filter((job) => job.application_id).map((job) => [
+              String(job.id),
+              { id: job.application_id, job_id: job.id, status: job.application_status },
+            ]),
           ),
         );
       })
@@ -91,6 +99,55 @@ export default function JobsPage() {
         : new Date(b.created_at || 0) - new Date(a.created_at || 0),
     );
   }, [jobs, search, sort]);
+
+  const loadLiveJobs = async ({ page = 1 } = {}) => {
+    setLiveLoading(true);
+    setNotice("");
+    try {
+      const result = await searchLiveJobs({ search: search.trim(), location: location.trim(), country, page });
+      const liveJobs = Array.isArray(result.jobs) ? result.jobs : [];
+      const savedState = getSavedJobState(liveJobs);
+      setJobs(liveJobs);
+      setSavedIds(savedState.ids);
+      setSavedJobRecords(savedState.records);
+      setLivePage(result.pagination?.page || page);
+      setLiveTotal(Number(result.pagination?.total) || 0);
+      setSourceMode("live");
+    } catch (error) {
+      setJobs([]);
+      setLiveTotal(0);
+      setNotice(error.response?.data?.message || "Live job search is unavailable. Please try again later.");
+    } finally {
+      setLiveLoading(false);
+    }
+  };
+
+  const switchSource = async (mode) => {
+    if (mode === sourceMode) return;
+    setSourceMode(mode);
+    setNotice("");
+    if (mode === "live") {
+      await loadLiveJobs({ page: 1 });
+      return;
+    }
+    setLoading(true);
+    try {
+      const workspaceJobs = await getJobs();
+      const savedState = getSavedJobState(workspaceJobs);
+      setJobs(workspaceJobs);
+      setSavedIds(savedState.ids);
+      setSavedJobRecords(savedState.records);
+    } catch (error) {
+      setNotice(error.response?.data?.message || "Unable to load your workspace roles.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const searchRoles = (event) => {
+    event.preventDefault();
+    if (sourceMode === "live") loadLiveJobs({ page: 1 });
+  };
 
   const handleSave = async (job) => {
     const isSaved = savedIds.includes(String(job.id));
@@ -200,11 +257,11 @@ export default function JobsPage() {
           <div className="eyebrow">Your job workspace</div>
           <h2>Find and track roles</h2>
           <p>
-            Add a real posting you found, save it, compare it with your resume,
-            and track your application.
+            Search live listings, save opportunities, compare them with your resume,
+            and keep your application pipeline organized.
           </p>
         </div>
-        <button
+        {sourceMode === "workspace" ? <div className="job-workspace-actions"><button
           type="button"
           className="btn btn-primary add-role-trigger"
           onClick={() => {
@@ -213,7 +270,7 @@ export default function JobsPage() {
           }}
         >
           <FiPlus /> {showRoleForm ? "Close form" : "Add a role"}
-        </button>
+        </button></div> : null}
       </div>
       {notice ? (
         <div className="alert alert-info" role="status">
@@ -371,17 +428,27 @@ export default function JobsPage() {
         </section>
       ) : null}
       <div className="panel-card job-search-panel">
-        <div className="job-search-row">
+        <div className="job-source-tabs" role="tablist" aria-label="Job listing source">
+          <button type="button" role="tab" aria-selected={sourceMode === "live"} className={sourceMode === "live" ? "active" : ""} onClick={() => switchSource("live")}>Live jobs</button>
+          <button type="button" role="tab" aria-selected={sourceMode === "workspace"} className={sourceMode === "workspace" ? "active" : ""} onClick={() => switchSource("workspace")}>My roles</button>
+        </div>
+        <form className="job-search-row" onSubmit={searchRoles}>
           <div className="search-field">
             <FiSearch />
             <input
-              aria-label="Search roles"
-              placeholder="Search roles"
+              aria-label="Search job titles and keywords"
+              placeholder={sourceMode === "live" ? "Job title or keyword" : "Search your roles"}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <div className="filter-field">
+          {sourceMode === "live" ? <>
+            <input className="job-location-input" aria-label="Location" placeholder="City or region" maxLength={100} value={location} onChange={(event) => setLocation(event.target.value)} />
+            <select aria-label="Country" value={country} onChange={(event) => setCountry(event.target.value)}>
+              <option value="in">India</option><option value="us">United States</option><option value="gb">United Kingdom</option><option value="ca">Canada</option><option value="au">Australia</option><option value="de">Germany</option><option value="fr">France</option>
+            </select>
+            <button type="submit" className="btn btn-primary job-search-submit" disabled={liveLoading}><FiSearch /> {liveLoading ? "Searching…" : "Search jobs"}</button>
+          </> : <div className="filter-field">
             <FiSliders />
             <select
               aria-label="Sort roles"
@@ -391,13 +458,15 @@ export default function JobsPage() {
               <option value="recent">Recently added</option>
               <option value="title">Title A–Z</option>
             </select>
-          </div>
+          </div>}
           <span className="result-count">
-            {filteredJobs.length} {filteredJobs.length === 1 ? "role" : "roles"}
+            {sourceMode === "live" ? `${liveTotal.toLocaleString()} live results` : `${filteredJobs.length} ${filteredJobs.length === 1 ? "role" : "roles"}`}
           </span>
-        </div>
+        </form>
+        {sourceMode === "live" ? <p className="job-source-note">Live listings provided by Adzuna. Apply on the employer’s site; CareerPilot only tracks your progress.</p> : null}
+        {liveLoading ? <div className="page-loading" role="status">Searching live listings…</div> : null}
         <div className="job-list">
-          {filteredJobs.length ? (
+          {!liveLoading && filteredJobs.length ? (
             filteredJobs.map((job) => (
               <JobCard
                 key={job.id}
@@ -407,32 +476,28 @@ export default function JobsPage() {
                 onSave={handleSave}
                 onApply={handleMarkApplied}
                 applying={applyingId === job.id}
+                sourceMode={sourceMode}
               />
             ))
-          ) : (
+          ) : !liveLoading ? (
             <div className="empty-state compact">
               <h3>
                 {search
                   ? "No matching roles"
-                  : "No roles in your workspace yet"}
+                  : sourceMode === "live" ? "Search live job listings" : "No roles in your workspace yet"}
               </h3>
               <p>
                 {search
                   ? "Try a different search term."
-                  : "Add the URL and details from a real job posting to start a shortlist and compare it with your resume."}
+                  : sourceMode === "live" ? "Enter a job title or keyword, then search to find current opportunities." : "Add a job posting you found, or search live listings to explore current opportunities."}
               </p>
-              {!search ? (
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  onClick={() => setShowRoleForm(true)}
-                >
-                  <FiPlus /> Add your first role
-                </button>
+              {!search && sourceMode === "workspace" ? (
+                <div className="empty-job-actions"><button type="button" className="btn btn-primary btn-sm" onClick={() => setShowRoleForm(true)}><FiPlus /> Add your first role</button></div>
               ) : null}
             </div>
-          )}
+          ) : null}
         </div>
+        {sourceMode === "live" && liveTotal > 20 ? <div className="job-pagination"><button type="button" onClick={() => loadLiveJobs({ page: livePage - 1 })} disabled={liveLoading || livePage <= 1}><FiChevronLeft /> Previous</button><span>Page {livePage} of {Math.max(1, Math.ceil(liveTotal / 20))}</span><button type="button" onClick={() => loadLiveJobs({ page: livePage + 1 })} disabled={liveLoading || livePage >= Math.ceil(liveTotal / 20)}>Next <FiChevronRight /></button></div> : null}
       </div>
     </div>
   );

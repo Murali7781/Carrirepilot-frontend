@@ -10,6 +10,7 @@ import {
 } from "react-icons/fi";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../services/api";
+import "../styles/interviews.scss";
 
 const initialForm = { type: "technical", title: "", job_id: "", resume_id: "" };
 const typeLabels = {
@@ -21,42 +22,88 @@ const typeLabels = {
 
 export default function InterviewsPage() {
   const [searchParams] = useSearchParams();
+  const requestedJobId = searchParams.get("jobId") || "";
+  const requestedResumeId = searchParams.get("resumeId") || "";
   const navigate = useNavigate();
   const [sessions, setSessions] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+  const [page, setPage] = useState(1);
   const [jobs, setJobs] = useState([]);
   const [resumes, setResumes] = useState([]);
   const [form, setForm] = useState(() => ({
     ...initialForm,
-    job_id: searchParams.get("jobId") || "",
-    resume_id: searchParams.get("resumeId") || "",
+    job_id: requestedJobId,
+    resume_id: requestedResumeId,
   }));
-  const [loading, setLoading] = useState(true);
+  const [lookupsLoading, setLookupsLoading] = useState(true);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
-    Promise.all([api.get("/interviews"), api.get("/jobs"), api.get("/resumes")])
-      .then(([sessionResponse, jobResponse, resumeResponse]) => {
+    const controller = new AbortController();
+    Promise.all([
+      api.get("/jobs", { signal: controller.signal }),
+      api.get("/resumes", { signal: controller.signal }),
+    ])
+      .then(([jobResponse, resumeResponse]) => {
         if (!active) return;
-        setSessions(sessionResponse.data?.data?.interviews || []);
+        const availableResumes = resumeResponse.data?.data?.resumes || [];
         setJobs(jobResponse.data?.data?.jobs || []);
-        setResumes(resumeResponse.data?.data?.resumes || []);
+        setResumes(availableResumes);
+        setForm((current) => ({
+          ...current,
+          resume_id: current.resume_id || requestedResumeId || String(availableResumes[0]?.id || ""),
+        }));
       })
       .catch((err) => {
-        if (active)
+        if (active && !controller.signal.aborted)
           setError(
             err.response?.data?.message ||
               "Unable to load your interview workspace.",
           );
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) setLookupsLoading(false);
       });
     return () => {
       active = false;
+      controller.abort();
     };
-  }, []);
+  }, [requestedResumeId]);
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    api.get("/interviews", { params: { page, limit: 20 }, signal: controller.signal })
+      .then((response) => {
+        if (!active) return;
+        const data = response.data?.data || {};
+        setSessions(data.interviews || []);
+        setPagination(data.pagination || { page, limit: 20, total: 0, totalPages: 0 });
+      })
+      .catch((err) => {
+        if (active && !controller.signal.aborted)
+          setError(err.response?.data?.message || "Unable to load your interview workspace.");
+      })
+      .finally(() => {
+        if (active) {
+          setSessionsLoading(false);
+          setPageLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [page]);
+
+  const goToPage = (nextPage) => {
+    setPageLoading(true);
+    setPage(nextPage);
+  };
 
   const createSession = async (event) => {
     event.preventDefault();
@@ -84,7 +131,7 @@ export default function InterviewsPage() {
     }
   };
 
-  if (loading)
+  if (lookupsLoading || (sessionsLoading && !sessions.length))
     return (
       <div className="page-loading" role="status">
         Loading interview practice…
@@ -141,7 +188,7 @@ export default function InterviewsPage() {
               <span className="eyebrow">NEW PRACTICE</span>
               <h3>Set up a session</h3>
               <p>
-                Connect practice to a role and resume for relevant questions.
+                We analyze your resume first, then tailor the questions to your evidence and experience.
               </p>
             </div>
           </div>
@@ -180,10 +227,11 @@ export default function InterviewsPage() {
               </select>
             </label>
             <label htmlFor="practice-resume">
-              Resume context <span>Optional</span>
+              Resume for question generation <span>Required</span>
               <select
                 id="practice-resume"
                 value={form.resume_id}
+                required
                 onChange={(e) =>
                   setForm((current) => ({
                     ...current,
@@ -191,7 +239,7 @@ export default function InterviewsPage() {
                   }))
                 }
               >
-                <option value="">No resume selected</option>
+                <option value="">Choose the resume to analyze</option>
                 {resumes.map((resume) => (
                   <option key={resume.id} value={resume.id}>
                     {resume.title}
@@ -214,15 +262,14 @@ export default function InterviewsPage() {
             <button
               type="submit"
               className="interview-primary-button"
-              disabled={saving}
+              disabled={saving || !resumes.length || !form.resume_id}
             >
               {saving ? "Creating session…" : "Create practice session"}{" "}
               <FiArrowRight />
             </button>
-            {!jobs.length ? (
+            {!resumes.length ? (
               <p className="interview-form-hint">
-                <Link to="/jobs">Add a real job posting</Link> first to tailor
-                practice for a specific opportunity.
+                <Link to="/resumes">Create or import a resume</Link> before starting; questions are generated from your actual experience and skills.
               </p>
             ) : null}
           </form>
@@ -234,9 +281,10 @@ export default function InterviewsPage() {
               <h3>Practice sessions</h3>
             </div>
             <span className="interview-count">
-              {sessions.length} {sessions.length === 1 ? "session" : "sessions"}
+              {pagination.total} {pagination.total === 1 ? "session" : "sessions"}
             </span>
           </div>
+          {pageLoading && sessions.length ? <p className="application-page-status" role="status">Loading page {page}…</p> : null}
           {sessions.length ? (
             <div className="interview-session-list">
               {sessions.map((session) => (
@@ -303,6 +351,7 @@ export default function InterviewsPage() {
               </a>
             </div>
           )}
+          {pagination.totalPages > 1 ? <nav className="list-pagination" aria-label="Interview session pages"><button type="button" onClick={() => goToPage(Math.max(1, page - 1))} disabled={pageLoading || page <= 1}>Previous</button><span>Page {pagination.page} of {pagination.totalPages}</span><button type="button" onClick={() => goToPage(Math.min(pagination.totalPages, page + 1))} disabled={pageLoading || page >= pagination.totalPages}>Next</button></nav> : null}
         </section>
       </div>
       <p className="interview-privacy-note">

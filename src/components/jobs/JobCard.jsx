@@ -1,4 +1,4 @@
-import { FiBookmark, FiBriefcase, FiEye, FiSend } from 'react-icons/fi';
+import { FiBookmark, FiBriefcase, FiExternalLink, FiEye, FiSend } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 
 const parseSkills = (value) => {
@@ -10,7 +10,7 @@ const parseSkills = (value) => {
   }
 };
 
-export default function JobCard({ job, saved, application, onSave, onApply, applying }) {
+export default function JobCard({ job, saved, application, onSave, onApply, applying, sourceMode }) {
   const skills = parseSkills(job.required_skills);
 
   return (
@@ -30,6 +30,7 @@ export default function JobCard({ job, saved, application, onSave, onApply, appl
         <button type="button" className={`icon-button ${saved ? 'saved' : ''}`} onClick={() => onSave(job)} aria-label={saved ? 'Remove saved job' : 'Save job'} title={saved ? 'Remove saved job' : 'Save job'}>
           <FiBookmark size={17} />
         </button>
+        {(job.apply_url || job.source_url) ? <a className="btn btn-light btn-sm" href={job.apply_url || job.source_url} target="_blank" rel="noopener noreferrer"><FiExternalLink size={15} /> {sourceMode === 'live' ? 'Apply' : 'Posting'}</a> : null}
         <Link to={`/jobs/${job.id}`} className="btn btn-light btn-sm"><FiEye size={15} /> Details</Link>
         <button type="button" className="btn btn-primary btn-sm" onClick={() => onApply(job)} disabled={applying || Boolean(application)}>
           <FiSend size={15} /> {applying ? 'Saving…' : application ? `Tracked · ${application.status}` : 'Mark applied'}

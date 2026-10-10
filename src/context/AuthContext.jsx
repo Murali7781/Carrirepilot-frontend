@@ -16,8 +16,10 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     // Remove bearer tokens created by older CareerPilot builds; sessions now use httpOnly cookies.
-    localStorage.removeItem('careerpilot_token');
-    localStorage.removeItem('careerpilot_user');
+    try {
+      localStorage.removeItem('careerpilot_token');
+      localStorage.removeItem('careerpilot_user');
+    } catch { /* Cookie-backed session restoration does not depend on local storage. */ }
     let active = true;
     getProfile()
       .then((profile) => { if (active) setUser(profile); })
@@ -52,7 +54,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
-    try { await logoutUser(); } catch { /* Clear the local app state even if the API session already expired. */ }
+    try {
+      await logoutUser();
+    } catch (error) {
+      if (error.response?.status !== 401) throw error;
+      // The API has confirmed this cookie no longer authorizes a session.
+    }
     clearLocalSession();
     if (window.location.pathname !== '/login') window.location.assign('/login');
   }, [clearLocalSession]);

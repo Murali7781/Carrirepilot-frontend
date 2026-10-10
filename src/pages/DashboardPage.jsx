@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FiArrowRight, FiBriefcase, FiCheckCircle, FiClock, FiFileText, FiPlus, FiSend, FiTarget } from 'react-icons/fi';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import '../styles/dashboard.scss';
 import DashboardStats from '../components/dashboard/DashboardStats';
 
 const pipelineStatuses = ['applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
@@ -28,12 +29,14 @@ export default function DashboardPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    let active = true;
-    api.get('/dashboard/summary')
-      .then((response) => { if (active) setSummary(response.data.data.summary || response.data.data); })
-      .catch((err) => { if (active) setError(err.response?.data?.message || 'Dashboard data is unavailable. Try again.'); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    const controller = new AbortController();
+    api.get('/dashboard/summary', { signal: controller.signal })
+      .then((response) => { if (!controller.signal.aborted) setSummary(response.data.data.summary || response.data.data); })
+      .catch((err) => {
+        if (!controller.signal.aborted) setError(err.response?.data?.message || 'Dashboard data is unavailable. Try again.');
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, [refreshKey]);
 
   const counts = summary?.counts || {};
@@ -68,8 +71,6 @@ export default function DashboardPage() {
           : { icon: FiTarget, title: 'Keep your momentum', description: 'Review your pipeline and choose one useful next step for today.', link: '/applications', action: 'View pipeline' };
   const NextIcon = nextAction.icon;
 
-  if (loading) return <div className="dashboard-loading" role="status"><span className="dashboard-loader" />Loading your career workspace…</div>;
-
   return <div className="page-section dashboard-page">
     <header className="dashboard-heading">
       <div className="dashboard-heading-copy"><span className="dashboard-overline">CAREER WORKSPACE · {new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date())}</span><h2>{getGreeting()}{firstName ? `, ${firstName}` : ''}</h2><p>{role ? `Your ${role} journey, in one clear view.` : 'Your career progress and next steps, in one clear view.'}</p></div>
@@ -87,8 +88,33 @@ export default function DashboardPage() {
 
     {error ? <div className="dashboard-error" role="alert"><span>{error}</span><button type="button" onClick={() => { setLoading(true); setError(''); setRefreshKey((value) => value + 1); }}>Retry</button></div> : null}
 
-    <DashboardStats counts={counts} />
+    <DashboardStats counts={counts} loading={loading} />
 
+    {loading ? <div className="dashboard-skeleton-grid" role="status" aria-label="Loading dashboard details" aria-busy="true">
+      <section className="dashboard-panel skeleton-panel">
+        <span className="skeleton-line skeleton-heading" />
+        <span className="skeleton-line skeleton-caption" />
+        <div className="skeleton-chart">{Array.from({ length: 6 }, (_, index) => <span key={index} />)}</div>
+      </section>
+      <section className="dashboard-panel skeleton-panel">
+        <span className="skeleton-line skeleton-heading" />
+        <span className="skeleton-line skeleton-copy" />
+        <span className="skeleton-line skeleton-copy short" />
+        <span className="skeleton-line skeleton-action" />
+      </section>
+      <section className="dashboard-panel skeleton-panel skeleton-wide">
+        <span className="skeleton-line skeleton-heading" />
+        <span className="skeleton-line skeleton-row" />
+        <span className="skeleton-line skeleton-row" />
+      </section>
+      <div className="skeleton-lower-grid skeleton-wide">
+        {[0, 1, 2].map((item) => <section className="dashboard-panel skeleton-panel" key={item}>
+          <span className="skeleton-line skeleton-heading" />
+          <span className="skeleton-line skeleton-row" />
+          <span className="skeleton-line skeleton-row" />
+        </section>)}
+      </div>
+    </div> : <>
     <div className="dashboard-main-grid">
       <section className="dashboard-panel activity-chart-panel">
         <div className="dashboard-panel-heading"><div><span className="dashboard-overline">JOB SEARCH ACTIVITY</span><h3>Applications over time</h3></div><Link to="/applications" className="dashboard-text-link">View applications <FiArrowRight /></Link></div>
@@ -136,5 +162,6 @@ export default function DashboardPage() {
     </div>
 
     <footer className="dashboard-footer-note"><FiCheckCircle /> Counts are based on your saved CareerPilot data. Applications are tracked here; CareerPilot does not submit them to employers.</footer>
+    </>}
   </div>;
 }

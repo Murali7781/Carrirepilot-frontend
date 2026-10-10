@@ -15,26 +15,14 @@
   --border: #{$line};
   --shadow: #{$shadow-card};
   --shadow-raised: #{$shadow-hover};
-  --bs-primary: #{$brand};
-  --bs-primary-rgb: 31, 105, 89;
-  --bs-success: #23845f;
-  --bs-success-rgb: 35, 132, 95;
-  --bs-link-color: #{$brand};
-  --bs-link-hover-color: #{$brand-deep};
 }
 
 body { background: $canvas; color: $ink; }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 3px solid rgba($brand, .38); outline-offset: 3px; }
 
-.btn-primary, .btn-success, .dashboard-primary-action, .resume-primary-button,
+.dashboard-primary-action, .resume-primary-button,
 .interview-primary-button, .auth-submit, .resume-cta {
-  --bs-btn-bg: #{$brand};
-  --bs-btn-border-color: #{$brand};
-  --bs-btn-hover-bg: #{$brand-deep};
-  --bs-btn-hover-border-color: #{$brand-deep};
-  --bs-btn-active-bg: #{$brand-deep};
-  --bs-btn-active-border-color: #{$brand-deep};
   box-shadow: 0 5px 14px rgba($brand, .15);
 }
 
@@ -49,14 +37,6 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .auth-story-panel { background: radial-gradient(circle at 85% 12%, rgba(153, 197, 172, .3), transparent 29%), linear-gradient(145deg, #f7faf8, #eef5f0 75%, #e7f1ea); }
 .company-avatar, .interview-icon, .interview-empty-icon, .resume-import-icon, .profile-card-icon { color: $brand; }
 
-.card, .dropdown-menu, .modal-content, .offcanvas {
-  border-color: $line;
-  border-radius: $radius-card;
-  box-shadow: $shadow-card;
-}
-
-.form-control:focus, .form-select:focus { @include focus-ring(); }
-
 @media (prefers-reduced-motion: no-preference) {
   .dashboard-stat-card, .job-card, .saved-job-card, .interview-session-card,
   .resume-library-card, .application-tracker-card {
@@ -66,8 +46,69 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 }
 
 @media (max-width: 767.98px) {
-  .container, .container-fluid { --bs-gutter-x: 1.15rem; }
   .page-heading, .dashboard-page-header { gap: .75rem; }
   .dashboard-stat-card, .resume-library-card, .job-card { min-width: 0; }
-  .table-responsive { border-radius: .8rem; }
 }
+.app-recovery {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--surface, #f6f8fa);
+}
+
+.app-recovery section {
+  width: min(100%, 520px);
+  padding: 32px;
+  border: 1px solid var(--border, #e2e8ee);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgb(29 44 60 / 8%);
+}
+
+.app-recovery h1 {
+  margin: 0 0 12px;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+.app-recovery p:not(.eyebrow) {
+  color: var(--muted, #617180);
+}
+
+.app-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.app-forbidden {
+  max-width: 680px;
+  margin: 32px auto;
+}
+
+.list-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 16px 0;
+  color: $muted;
+  font-size: .72rem;
+}
+
+.list-pagination button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid $line;
+  border-radius: 7px;
+  background: #fff;
+  color: $brand-deep;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.list-pagination button:hover:not(:disabled) { background: $brand-soft; }
+.list-pagination button:disabled { opacity: .5; cursor: not-allowed; }
+.application-page-status { margin: 0 0 10px; color: $muted; font-size: .7rem; }

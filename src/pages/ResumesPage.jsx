@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FiActivity, FiArrowLeft, FiArrowRight, FiCheck, FiDownload, FiFileText, FiPlus, FiTarget, FiTrash2, FiUpload, FiZap } from 'react-icons/fi';
+import { FiActivity, FiArrowLeft, FiArrowRight, FiCheck, FiDownload, FiFileText, FiPlus, FiSearch, FiTarget, FiTrash2, FiUpload, FiZap } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import '../styles/resumes.scss';
 
 const steps = ['Basics', 'Summary', 'Experience', 'Education', 'Skills', 'Projects', 'Certifications', 'Review'];
 const MAX_IMPORT_SIZE = 8 * 1024 * 1024;
@@ -99,6 +100,24 @@ function ResumeMatchReport({ analysis }) {
   </div>;
 }
 
+function ResumeAtsReport({ analysis }) {
+  const score = Number.isFinite(Number(analysis.score)) ? Math.max(0, Math.min(100, Number(analysis.score))) : null;
+  const checks = Array.isArray(analysis.checks) ? analysis.checks : [];
+  const matched = Array.isArray(analysis.matchedKeywords) ? analysis.matchedKeywords : [];
+  const missing = Array.isArray(analysis.missingKeywords) ? analysis.missingKeywords : [];
+  const recommendations = Array.isArray(analysis.recommendations) ? analysis.recommendations : [];
+  return <div className="resume-ats-report">
+    <div className="resume-ats-score"><strong>{score == null ? '—' : score}</strong><span>/ 100</span><small>ATS-style estimate</small></div>
+    <div className="resume-ats-results">
+      <div className="resume-ats-checks">{checks.map((check) => <span className={check.passed ? 'passed' : 'needs-work'} key={check.label}>{check.passed ? <FiCheck /> : <FiTarget />}{check.label}</span>)}</div>
+      <div className="resume-report-section"><div className="resume-report-section-title"><h4>Keywords found</h4><small>{matched.length}</small></div>{matched.length ? <div className="resume-gap-tags matched-tags">{matched.slice(0, 20).map((keyword) => <span key={keyword}>{keyword}</span>)}</div> : <p>No target keywords were found in the available resume text.</p>}</div>
+      <div className="resume-report-section"><div className="resume-report-section-title"><h4>Keywords to review</h4><small>{missing.length}</small></div>{missing.length ? <div className="resume-gap-tags">{missing.slice(0, 12).map((keyword) => <span key={keyword}>{keyword}</span>)}</div> : <p>No missing keywords detected.</p>}</div>
+      {recommendations.length ? <div className="resume-report-section"><h4>Suggestions</h4><ul>{recommendations.map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
+      <small className="resume-ats-disclaimer">A text-based estimate, not an employer’s ATS result. Only add keywords that accurately describe your experience.</small>
+    </div>
+  </div>;
+}
+
 function ResumeItemsEditor({ section, entries, onAdd, onChange, onRemove }) {
   const definition = itemDefinitions[section];
   return <div className="resume-step-content">
@@ -128,6 +147,11 @@ export default function ResumesPage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [selectedAnalysisResume, setSelectedAnalysisResume] = useState('');
   const [selectedAnalysisJob, setSelectedAnalysisJob] = useState('');
+  const [atsResumeId, setAtsResumeId] = useState('');
+  const [atsTargetRole, setAtsTargetRole] = useState('');
+  const [atsJobDescription, setAtsJobDescription] = useState('');
+  const [atsAnalysis, setAtsAnalysis] = useState(null);
+  const [atsAnalyzing, setAtsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [review, setReview] = useState(null);
   const [extractedSource, setExtractedSource] = useState(null);
@@ -184,6 +208,7 @@ export default function ResumesPage() {
         const nextJobs = Array.isArray(jobsResponse?.data?.data?.jobs) ? jobsResponse.data.data.jobs : [];
         setResumes(nextResumes); setJobs(nextJobs);
         if (nextResumes.length) setSelectedAnalysisResume(String(nextResumes[0].id));
+        if (nextResumes.length) setAtsResumeId(String(nextResumes[0].id));
         if (nextJobs.length) setSelectedAnalysisJob(String(nextJobs[0].id));
       })
       .catch((err) => { if (active) setError(err.response?.data?.message || 'Unable to load your resumes.'); })
@@ -251,6 +276,7 @@ export default function ResumesPage() {
       setHasUnsavedChanges(false);
       setActiveStep(steps.length - 1);
       setSelectedAnalysisResume(String(savedResume.id));
+      setAtsResumeId(String(savedResume.id));
       setExtractedSource(savedResume.source_file_name ? { fileName: savedResume.source_file_name, text: savedResume.extracted_text || '' } : extractedSource);
       if (selectedAnalysisJob && !selectedId) {
         try {
@@ -328,7 +354,7 @@ export default function ResumesPage() {
       setResumes((current) => [imported, ...current.filter((resume) => String(resume.id) !== String(imported.id))]);
       const resumeId = String(imported.id);
       const jobId = selectedAnalysisJob || (jobs[0] ? String(jobs[0].id) : '');
-      setSelectedAnalysisResume(resumeId); setSelectedId(imported.id); setForm(resumeToForm(imported, user)); setActiveStep(0);
+      setSelectedAnalysisResume(resumeId); setAtsResumeId(resumeId); setSelectedId(imported.id); setForm(resumeToForm(imported, user)); setActiveStep(0);
       setExtractedSource({ fileName: imported.source_file_name || importFile.name, text: imported.extracted_text || '' });
       setHasUnsavedChanges(false);
       setSuccess(response.data?.data?.note || 'PDF imported and saved to your resume library.');
@@ -378,6 +404,24 @@ export default function ResumesPage() {
     finally { setAnalyzing(false); }
   };
 
+  const runAtsCheck = async (event) => {
+    event.preventDefault();
+    if (!atsResumeId) { setError('Save or import a resume before running the ATS-style check.'); return; }
+    if (atsJobDescription.trim().length < 30) { setError('Paste a job description with at least 30 characters.'); return; }
+    setAtsAnalyzing(true); setError(''); setSuccess('');
+    try {
+      const response = await api.post(`/resumes/${atsResumeId}/analyze`, {
+        targetRole: atsTargetRole.trim(),
+        jobDescription: atsJobDescription.trim(),
+      });
+      setAtsAnalysis(response.data?.data?.analysis || null);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Unable to check this resume against the job description.');
+    } finally {
+      setAtsAnalyzing(false);
+    }
+  };
+
   if (loading) return <div className="page-loading" role="status">Loading your resume workspace…</div>;
 
   const isEditing = Boolean(selectedId);
@@ -395,6 +439,16 @@ export default function ResumesPage() {
         {importFile ? <button type="button" className="resume-import-clear" onClick={() => { setImportFile(null); if (importInputRef.current) importInputRef.current.value = ''; }}>Remove</button> : null}
         <button type="button" className="resume-primary-button" onClick={importExistingResume} disabled={!importFile || importing}>{importing ? 'Reading PDF…' : 'Import PDF'} <FiArrowRight /></button>
       </div>
+    </section>
+
+    <section className="resume-ats-panel" aria-labelledby="resume-ats-title">
+      <div className="resume-analysis-heading"><div><span className="resume-eyebrow">INDEPENDENT ATS CHECK</span><h3 id="resume-ats-title">Check a resume against any job description</h3><p>Paste a listing from a job board to review keyword coverage and common resume sections.</p></div><FiSearch /></div>
+      {resumes.length ? <form className="resume-ats-form" onSubmit={runAtsCheck}>
+        <div className="resume-analysis-controls"><label>Resume to check<select value={atsResumeId} onChange={(event) => { setAtsResumeId(event.target.value); setAtsAnalysis(null); }}><option value="">Choose a saved resume</option>{resumes.map((resume) => <option value={resume.id} key={resume.id}>{resume.title}</option>)}</select></label><label>Target role <span>Optional</span><input type="text" maxLength={150} value={atsTargetRole} onChange={(event) => setAtsTargetRole(event.target.value)} placeholder="e.g. Product Designer" /></label></div>
+        <label className="resume-ats-description">Job description<textarea value={atsJobDescription} maxLength={15000} minLength={30} onChange={(event) => setAtsJobDescription(event.target.value)} placeholder="Paste the job description here (at least 30 characters)…" required /></label>
+        <div className="resume-ats-submit-row"><small>{atsJobDescription.length.toLocaleString()} / 15,000 characters</small><button type="submit" className="resume-primary-button" disabled={atsAnalyzing || !atsResumeId || atsJobDescription.trim().length < 30}>{atsAnalyzing ? 'Checking resume…' : 'Check resume'} <FiTarget /></button></div>
+        {atsAnalysis ? <ResumeAtsReport analysis={atsAnalysis} /> : null}
+      </form> : <div className="resume-analysis-empty"><p>Save or import a resume to check it against any job description.</p><button type="button" onClick={() => document.querySelector('.resume-builder')?.scrollIntoView({ behavior: 'smooth' })}>Build a resume</button></div>}
     </section>
 
     <section className="resume-analysis-panel"><div className="resume-analysis-heading"><div><span className="resume-eyebrow">ROLE-SPECIFIC FIT</span><h3>ATS-style match and skill gaps</h3><p>This is an estimate from resume text and job requirements, not a score from an employer’s ATS or a hiring prediction.</p></div><FiTarget /></div>{resumes.length && jobs.length ? <><div className="resume-analysis-controls"><label>Resume<select value={selectedAnalysisResume} onChange={(event) => { setSelectedAnalysisResume(event.target.value); setAnalysis(null); setReview(null); }}><option value="">Choose a resume</option>{resumes.map((resume) => <option value={resume.id} key={resume.id}>{resume.title}</option>)}</select></label><label>Target role<select value={selectedAnalysisJob} onChange={(event) => { setSelectedAnalysisJob(event.target.value); setAnalysis(null); setReview(null); }}><option value="">Choose a role</option>{jobs.map((job) => <option value={job.id} key={job.id}>{job.title}{job.company ? ` · ${job.company}` : ''}</option>)}</select></label><button type="button" className="resume-primary-button" disabled={analyzing || !selectedAnalysisResume || !selectedAnalysisJob} onClick={analyzeSelectedResume}>{analyzing ? 'Analyzing…' : 'Analyze resume'} <FiTarget /></button></div><p className="resume-ai-disclosure">When live OpenAI is enabled, “Get improvement suggestions” sends the selected resume text and job description to OpenAI. Imported contact details are redacted where recognized; the original PDF is not sent.</p>{analysis ? <ResumeMatchReport analysis={analysis} /> : null}{review ? <div className="resume-ai-review"><header><FiZap /><div><h4>Resume improvement suggestions</h4><span className={`resume-ai-mode ${review.mode}`}>{review.mode === 'openai' ? 'OpenAI' : 'Rule-based guidance'}</span></div></header><p>{review.notice}</p><div className="resume-ai-review-content">{review.response}</div><small>Review suggestions carefully. Only use wording that is accurate to your real experience. <button type="button" onClick={() => { const item = resumes.find((resume) => String(resume.id) === selectedAnalysisResume); if (item) editResume(item); }}>Open this resume in the editor</button></small></div> : null}<div className="resume-analysis-actions"><button type="button" className="resume-secondary-button" onClick={getResumeReview} disabled={analyzing || !selectedAnalysisResume || !selectedAnalysisJob}>{analyzing ? 'Preparing suggestions…' : 'Get improvement suggestions'} <FiZap /></button><Link to={`/interviews?jobId=${selectedAnalysisJob}&resumeId=${selectedAnalysisResume}`}>Practice an interview for this role <FiActivity /></Link></div></> : <div className="resume-analysis-empty">{!resumes.length ? <><p>Save or import a resume to begin.</p><button type="button" onClick={() => document.querySelector('.resume-import-panel')?.scrollIntoView({ behavior: 'smooth' })}>Import a PDF</button></> : <><p>Add or save a job description to compare your resume against it.</p><Link to="/jobs">Go to roles</Link></>}</div>}</section>
