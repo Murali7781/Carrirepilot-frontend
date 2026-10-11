@@ -15,23 +15,27 @@ const savedJobRoutes = require('./routes/savedJobRoutes');
 const applicationRoutes = require('./routes/applicationRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const errorMiddleware = require('./middleware/errorMiddleware');
+const csrfProtection = require('./middleware/csrfProtection');
+const { isAllowedOrigin } = require('./config/originPolicy');
+const { errorResponse } = require('./utils/response');
 
-const allowedOrigins = (process.env.CLIENT_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
-const app = express();
-app.use(cors({
+const corsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    if (!origin || isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
     const error = new Error('Origin is not allowed by the API CORS policy.');
     error.statusCode = 403;
     return callback(error);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-}));
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+const app = express();
+app.use(cors(corsOptions));
+app.use(csrfProtection);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.disable('x-powered-by');
@@ -46,6 +50,7 @@ app.get('/', (req, res) => {
   res.json({
     success: true,
     message: 'CareerPilot backend is running',
+    data: {},
   });
 });
 
@@ -64,10 +69,7 @@ app.use('/api/applications', applicationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found',
-  });
+  res.status(404).json(errorResponse('Route not found.', 404));
 });
 
 app.use(errorMiddleware);

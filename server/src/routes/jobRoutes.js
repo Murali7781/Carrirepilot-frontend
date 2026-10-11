@@ -1,14 +1,16 @@
 const express = require('express');
 const authMiddleware = require('../middleware/authMiddleware');
-const { listJobs, createJob, getJob, updateJob, deleteJob } = require('../controllers/jobController');
+const { requirePermission } = require('../middleware/roleMiddleware');
+const { listJobs, addSampleJobsToWorkspace, createJob, getJob, updateJob, deleteJob } = require('../controllers/jobController');
 
 const router = express.Router();
 
 router.use(authMiddleware);
-router.get('/', listJobs);
-router.post('/', createJob);
-router.get('/:id', getJob);
-router.put('/:id', updateJob);
-router.delete('/:id', deleteJob);
+router.get('/', requirePermission('jobs.view'), listJobs);
+router.post('/sample-listings', requirePermission('jobs.create'), addSampleJobsToWorkspace);
+router.post('/', requirePermission('jobs.create'), createJob);
+router.get('/:id', requirePermission('jobs.view'), getJob);
+router.put('/:id', requirePermission('jobs.update'), updateJob);
+router.delete('/:id', requirePermission('jobs.delete'), deleteJob);
 
 module.exports = router;

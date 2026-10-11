@@ -1,60 +1,73 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { FiMessageCircle, FiSend, FiX } from 'react-icons/fi';
+import { useEffect, useRef, useState } from 'react';
+import { FiMessageCircle, FiMinimize2, FiSend, FiX } from 'react-icons/fi';
+import { useLocation } from 'react-router-dom';
 import api from '../services/api';
-import { useAuth } from '../context/useAuth';
-
-const greeting = { role: 'assistant', text: 'Hi! I can help with resumes, applications, skills, and interview preparation. What are you working on?' };
 
 export default function CoachWidget() {
-  const { user } = useAuth();
-  const historyKey = `careerpilot_ai_history_${user?.id || 'guest'}`;
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
-  const [storedHistory, setStoredHistory] = useState({ key: '', messages: [] });
-  const messages = useMemo(() => storedHistory.key === historyKey ? storedHistory.messages : [greeting], [historyKey, storedHistory]);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState('local');
-  const endRef = useRef(null);
+  const [error, setError] = useState('');
+  const [assistantMode, setAssistantMode] = useState('local');
+  const [modeNotice, setModeNotice] = useState('');
+  const bottomRef = useRef(null);
+  const inputRef = useRef(null);
+  const labels = { '/dashboard': 'Career overview', '/profile': 'Career profile', '/resumes': 'Resume builder', '/jobs': 'Role search', '/saved-jobs': 'Saved roles', '/applications': 'Application tracker', '/skills': 'Skills', '/interviews': 'Interview practice' };
+  const context = labels[location.pathname] || (location.pathname.startsWith('/interviews/') ? 'Interview practice session' : 'Career workspace');
 
+  useEffect(() => { if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [open, history, loading]);
+  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(historyKey);
-      const parsed = saved ? JSON.parse(saved) : [];
-      setStoredHistory({ key: historyKey, messages: Array.isArray(parsed) && parsed.length ? parsed : [greeting] });
-    } catch {
-      setStoredHistory({ key: historyKey, messages: [greeting] });
-    }
-  }, [historyKey]);
-
+    if (!open) return;
+    let active = true;
+    api.get('/ai/status').then((response) => {
+      if (active) setAssistantMode(response.data?.data?.mode || 'local');
+    }).catch(() => {
+      if (active) setModeNotice('Assistant mode could not be checked.');
+    });
+    return () => { active = false; };
+  }, [open]);
   useEffect(() => {
-    if (storedHistory.key !== historyKey) return;
-    localStorage.setItem(historyKey, JSON.stringify(storedHistory.messages.slice(-40)));
-  }, [historyKey, storedHistory]);
-
-  useEffect(() => { if (open) endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading, open]);
+    const openAssistant = () => setOpen(true);
+    window.addEventListener('careerpilot:open-coach', openAssistant);
+    return () => window.removeEventListener('careerpilot:open-coach', openAssistant);
+  }, []);
 
   const send = async (event) => {
     event.preventDefault();
     const text = message.trim();
     if (!text || loading) return;
-    const next = [...messages, { role: 'user', text }];
-    setStoredHistory({ key: historyKey, messages: next }); setMessage(''); setLoading(true);
+    const previousHistory = history;
+    setHistory((current) => [...current, { role: 'user', text }]);
+    setMessage(''); setError(''); setLoading(true);
     try {
-      const response = await api.post('/ai/chat', { message: text, history: next.slice(-12) });
-      setStoredHistory((current) => ({ key: historyKey, messages: [...(current.key === historyKey ? current.messages : []), { role: 'assistant', text: response.data.data.response }] }));
-      setMode(response.data.data.mode || 'local');
-    } catch (error) {
-      setStoredHistory((current) => ({ key: historyKey, messages: [...(current.key === historyKey ? current.messages : []), { role: 'assistant', text: error.response?.data?.message || 'I could not reach the career coach. Please try again.' }] }));
-      setMode('local');
+      const response = await api.post('/ai/chat', { message: text, history: previousHistory.slice(-19), context });
+      const result = response.data?.data || {};
+      setAssistantMode(result.mode || 'local');
+      setModeNotice(result.notice || '');
+      setHistory((current) => [...current, { role: 'assistant', text: result.response || 'I could not create a response. Try again.' }]);
+    } catch (err) {
+      const message = err.response?.data?.message || 'The career assistant is unavailable. Try again in a moment.';
+      const providerError = err.response?.data?.providerError;
+      const diagnostic = providerError
+        ? [providerError.status ? `HTTP ${providerError.status}` : '', providerError.type, providerError.code].filter(Boolean).join(' · ')
+        : '';
+      setError(diagnostic ? `${message} (${diagnostic})` : message);
     } finally { setLoading(false); }
   };
 
   return <div className="coach-widget">
-    {open ? <section className="coach-widget-panel" aria-label="CareerPilot career assistant">
-      <header><div><span className="coach-widget-mark">C</span><div><strong>CareerPilot assistant</strong><small>{mode === 'openai' ? 'Live AI connected' : 'Local career guidance'}</small></div></div><button type="button" aria-label="Close assistant" onClick={() => setOpen(false)}><FiX /></button></header>
-      <div className="coach-widget-messages" aria-live="polite">{messages.map((item, index) => <div key={`${item.role}-${index}`} className={`coach-widget-message ${item.role}`}>{item.text}</div>)}{loading ? <div className="coach-widget-message assistant">Thinking…</div> : null}<div ref={endRef} /></div>
-      <form onSubmit={send}><input value={message} onChange={(event) => setMessage(event.target.value)} maxLength={4000} aria-label="Ask CareerPilot" /><button type="submit" aria-label="Send message" disabled={!message.trim() || loading}><FiSend /></button></form>
+    {open ? <section className="coach-panel" aria-label="CareerPilot assistant chat">
+      <header className="coach-header"><span className="coach-avatar"><FiMessageCircle /></span><div><strong>CareerPilot assistant</strong><small>Here to help with {context.toLowerCase()}</small><span className={`coach-mode ${assistantMode}`}>{assistantMode === 'openai' ? 'AI key configured' : 'Workspace guidance'}</span></div><button type="button" onClick={() => setOpen(false)} aria-label="Minimize career assistant"><FiMinimize2 /></button><button type="button" onClick={() => setOpen(false)} aria-label="Close career assistant"><FiX /></button></header>
+      <div className="coach-messages" aria-live="polite">
+        {!history.length ? <div className="coach-intro"><span className="eyebrow">YOUR CAREER GUIDE</span><h3>What are you working on?</h3><p>Ask about your resume, a role you saved, an application, skill gaps, or interview practice.</p><div className="coach-suggestions">{['Help me prepare for an interview', 'How can I improve my resume?'].map((suggestion) => <button key={suggestion} type="button" onClick={() => setMessage(suggestion)}>{suggestion}</button>)}</div></div> : history.map((item, index) => <div className={`coach-message ${item.role}`} key={`${index}-${item.role}`}><span>{item.role === 'assistant' ? 'CP' : 'You'}</span><p>{item.text}</p></div>)}
+        {loading ? <div className="coach-typing" role="status"><span /><span /><span /> Thinking</div> : null}{modeNotice ? <div className="coach-mode-notice" role="status">{modeNotice}</div> : null}{error ? <div className="coach-error" role="alert">{error}</div> : null}<div ref={bottomRef} />
+      </div>
+      <form className="coach-compose" onSubmit={send}><textarea ref={inputRef} aria-label="Message CareerPilot assistant" placeholder="Ask a career question…" rows={2} value={message} onChange={(event) => setMessage(event.target.value)} maxLength={4000} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} /><button type="submit" disabled={!message.trim() || loading} aria-label="Send message"><FiSend /></button></form>
+      <div className="coach-footer">Your message and career workspace summary may be sent to the configured AI provider. Verify important advice.</div>
     </section> : null}
-    <button className="coach-widget-launcher" type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-label={open ? 'Close career assistant' : 'Open career assistant'}>{open ? <FiX /> : <FiMessageCircle />}<span>{open ? 'Close' : 'Ask CareerPilot'}</span></button>
+    <button type="button" className={`coach-launcher${open ? ' open' : ''}`} onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-label={open ? 'Close career assistant' : 'Open career assistant'}><FiMessageCircle /><span>{open ? 'Close' : 'Career assistant'}</span></button>
   </div>;
 }

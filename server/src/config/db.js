@@ -1,9 +1,12 @@
 const mysql = require('mysql2/promise');
+const { lookup } = require('node:dns/promises');
 
 const requiredEnvironmentVariables = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'DB_PORT'];
 
 function getDatabaseConfig() {
-  const missingVariables = requiredEnvironmentVariables.filter((variable) => !process.env[variable]);
+  const missingVariables = requiredEnvironmentVariables.filter(
+    (variable) => !process.env[variable]?.trim(),
+  );
 
   if (missingVariables.length > 0) {
     throw new Error(`Missing required database environment variables: ${missingVariables.join(', ')}`);
@@ -16,19 +19,69 @@ function getDatabaseConfig() {
   }
 
   return {
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
+    host: process.env.DB_HOST.trim(),
+    user: process.env.DB_USER.trim(),
     password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME,
+    database: process.env.DB_NAME.trim(),
     port,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
     charset: 'utf8mb4',
+    ssl: process.env.NODE_ENV === 'production'
+      ? { rejectUnauthorized: true }
+      : undefined,
   };
 }
 
-const pool = mysql.createPool(getDatabaseConfig());
+let poolPromise;
+
+async function getPool() {
+  if (!poolPromise) {
+    poolPromise = (async () => {
+      const config = getDatabaseConfig();
+      console.info('MySQL connection configuration:', {
+        DB_HOST: config.host,
+        DB_PORT: config.port,
+        DB_USER: config.user,
+        DB_NAME: config.database,
+      });
+
+      try {
+        await lookup(config.host);
+      } catch (error) {
+        console.error(`DNS lookup failed for DB_HOST: ${config.host}`);
+        const dnsError = new Error(
+          `DNS lookup failed for DB_HOST ${config.host}${error.code ? ` (${error.code})` : ''}.`,
+          { cause: error },
+        );
+        dnsError.code = error.code;
+        throw dnsError;
+      }
+
+      return mysql.createPool(config);
+    })().catch((error) => {
+      poolPromise = undefined;
+      throw error;
+    });
+  }
+
+  return poolPromise;
+}
+
+const pool = {
+  query(...args) {
+    return getPool().then((connectionPool) => connectionPool.query(...args));
+  },
+  getConnection() {
+    return getPool().then((connectionPool) => connectionPool.getConnection());
+  },
+  async end() {
+    if (!poolPromise) return;
+    const connectionPool = await poolPromise;
+    return connectionPool.end();
+  },
+};
 
 async function testDatabaseConnection() {
   const [rows] = await pool.query('SELECT 1 AS ok');
@@ -47,6 +100,7 @@ async function initializeDatabase() {
       name VARCHAR(100) NOT NULL,
       email VARCHAR(255) NOT NULL UNIQUE,
       password VARCHAR(255) NOT NULL,
+      role ENUM('candidate', 'recruiter', 'admin') NOT NULL DEFAULT 'candidate',
       mobile VARCHAR(20),
       token_version INT UNSIGNED NOT NULL DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -57,6 +111,7 @@ async function initializeDatabase() {
       id INT PRIMARY KEY AUTO_INCREMENT,
       user_id INT NOT NULL,
       title VARCHAR(150) NOT NULL,
+      target_role VARCHAR(150) NULL,
       personal_info JSON,
       professional_summary TEXT,
       education JSON,
@@ -64,12 +119,29 @@ async function initializeDatabase() {
       skills JSON,
       projects JSON,
       certifications JSON,
+      file_path VARCHAR(500) NULL,
+      original_file_name VARCHAR(255) NULL,
+      file_size INT UNSIGNED NULL,
       source_file_name VARCHAR(255) NULL,
       extracted_text MEDIUMTEXT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       KEY idx_resumes_user_updated (user_id, updated_at),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
+
+    `CREATE TABLE IF NOT EXISTS resume_analyses (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      user_id INT NOT NULL,
+      resume_id INT NOT NULL,
+      target_role VARCHAR(150) NULL,
+      job_description TEXT NOT NULL,
+      score TINYINT UNSIGNED NOT NULL,
+      result JSON NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_resume_analysis_latest (user_id, resume_id, created_at),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (resume_id) REFERENCES resumes(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`,
 
     `CREATE TABLE IF NOT EXISTS resume_skills (
@@ -91,7 +163,18 @@ async function initializeDatabase() {
       required_skills JSON,
       preferred_skills JSON,
       experience_requirements TEXT,
-      location VARCHAR(200),
+      source VARCHAR(40) NOT NULL DEFAULT 'manual',
+      source_job_id VARCHAR(120) NULL,
+      source_country CHAR(2) NOT NULL DEFAULT '',
+      location VARCHAR(255) NULL,
+      work_mode VARCHAR(40) NULL,
+      salary_min DECIMAL(12, 2) NULL,
+      salary_max DECIMAL(12, 2) NULL,
+      salary_currency CHAR(3) NULL,
+      employment_type VARCHAR(60) NULL,
+      apply_url VARCHAR(1000) NULL,
+      published_at DATETIME NULL,
+      fetched_at DATETIME NULL,
       source_url VARCHAR(2048),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -239,6 +322,127 @@ async function initializeDatabase() {
     await pool.query(query);
   }
 
+  const [roleColumn] = await pool.query(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role' LIMIT 1`,
+  );
+
+  if (!roleColumn.length) {
+    await pool.query(
+      "ALTER TABLE users ADD COLUMN role ENUM('candidate', 'recruiter', 'admin') NOT NULL DEFAULT 'candidate'",
+    );
+  }
+
+  await pool.query("UPDATE users SET role = 'candidate' WHERE role IS NULL OR role = ''");
+
+  const resumeColumns = {
+    target_role: 'VARCHAR(150) NULL',
+    file_path: 'VARCHAR(500) NULL',
+    original_file_name: 'VARCHAR(255) NULL',
+    file_size: 'INT UNSIGNED NULL',
+    source_file_name: 'VARCHAR(255) NULL',
+    extracted_text: 'MEDIUMTEXT NULL',
+  };
+
+  for (const [column, definition] of Object.entries(resumeColumns)) {
+    const [rows] = await pool.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'resumes' AND COLUMN_NAME = ?`,
+      [column],
+    );
+
+    if (!rows.length) {
+      await pool.query(`ALTER TABLE resumes ADD COLUMN ${column} ${definition}`);
+    }
+  }
+
+  const jobColumns = {
+    source: "VARCHAR(40) NOT NULL DEFAULT 'manual'",
+    source_job_id: 'VARCHAR(120) NULL',
+    source_country: "CHAR(2) NOT NULL DEFAULT ''",
+    location: 'VARCHAR(255) NULL',
+    work_mode: 'VARCHAR(40) NULL',
+    salary_min: 'DECIMAL(12, 2) NULL',
+    salary_max: 'DECIMAL(12, 2) NULL',
+    salary_currency: 'CHAR(3) NULL',
+    employment_type: 'VARCHAR(60) NULL',
+    apply_url: 'VARCHAR(1000) NULL',
+    published_at: 'DATETIME NULL',
+    fetched_at: 'DATETIME NULL',
+  };
+
+  for (const [column, definition] of Object.entries(jobColumns)) {
+    const [rows] = await pool.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'job_descriptions' AND COLUMN_NAME = ?`,
+      [column],
+    );
+
+    if (!rows.length) {
+      await pool.query(`ALTER TABLE job_descriptions ADD COLUMN ${column} ${definition}`);
+    }
+  }
+
+  const [externalJobIndex] = await pool.query(
+    `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'job_descriptions'
+       AND INDEX_NAME = 'unique_external_job_per_user' LIMIT 1`,
+  );
+  if (!externalJobIndex.length) {
+    await pool.query(
+      'ALTER TABLE job_descriptions ADD UNIQUE KEY unique_external_job_per_user (user_id, source, source_country, source_job_id)',
+    );
+  }
+
+  try {
+    await pool.query('ALTER TABLE interview_sessions ADD COLUMN scheduled_at DATETIME NULL AFTER status');
+  } catch (error) {
+    if (error.code !== 'ER_DUP_FIELDNAME') throw error;
+  }
+
+  const [users] = await pool.query('SELECT id FROM users');
+  const starterJobs = [
+    ['Frontend Engineer', 'Northstar Labs', 'Build and maintain responsive, accessible web experiences with React and modern JavaScript. Partner with product designers and backend engineers to turn requirements into reusable UI, integrate APIs, write component and browser tests, investigate production issues, and improve page performance. Required: React, JavaScript, HTML, CSS, accessibility, API integration, Git, and testing. Preferred: TypeScript and design systems.', ['React', 'JavaScript', 'HTML', 'CSS', 'Accessibility', 'Testing'], ['TypeScript', 'Design systems'], '2+ years'],
+    ['Product Designer', 'Orbit Studio', 'Lead product design from early discovery through detailed delivery. Interview users, map workflows, create wireframes and interactive prototypes, test concepts, maintain accessible design patterns, and work with engineers through implementation. Required: Figma, user research, interaction design, prototyping, accessibility, and communication. Preferred: design systems and usability testing.', ['Figma', 'UX research', 'Interaction design', 'Prototyping', 'Accessibility'], ['Design systems', 'Usability testing'], '2+ years'],
+    ['Backend Developer', 'SignalWorks', 'Design, implement, and operate dependable Node.js services and APIs. Model relational data, apply authentication and validation, write automated tests, review changes, monitor service health, and work with frontend and product teams. Required: Node.js, API design, SQL, authentication, testing, Git, and debugging. Preferred: Docker and cloud deployment.', ['Node.js', 'API design', 'SQL', 'Authentication', 'Testing'], ['Docker', 'Cloud'], '1+ year'],
+    ['Data Analyst', 'Greenline Mobility', 'Analyze operational and product data to help teams make better decisions. Write documented SQL, validate data quality, build clear dashboards, investigate changes in key measures, and present practical findings to non-technical partners. Required: SQL, spreadsheets, data visualization, analytical reasoning, and communication. Preferred: Python and Tableau.', ['SQL', 'Spreadsheets', 'Data visualization', 'Communication'], ['Python', 'Tableau'], '1+ year'],
+  ];
+
+  for (const user of users) {
+    const [existingJobs] = await pool.query('SELECT id FROM job_descriptions WHERE user_id = ? LIMIT 1', [user.id]);
+    if (existingJobs.length) continue;
+    await pool.query(
+      `INSERT INTO job_descriptions
+       (user_id, title, company, description, required_skills, preferred_skills, experience_requirements, source)
+       VALUES ?`,
+      [starterJobs.map(([title, company, description, required, preferred, experience]) => [
+        user.id,
+        title,
+        company,
+        description,
+        JSON.stringify(required),
+        JSON.stringify(preferred),
+        experience,
+        'demo',
+      ])],
+    );
+  }
+
+  await pool.query(
+    `UPDATE job_descriptions SET description = CASE title
+       WHEN 'Frontend Engineer' THEN ? WHEN 'Product Designer' THEN ?
+       WHEN 'Backend Developer' THEN ? WHEN 'Data Analyst' THEN ? ELSE description END
+     WHERE source = 'demo' AND (
+       (title = 'Frontend Engineer' AND description = 'Build accessible React interfaces and collaborate with product and design teams.') OR
+       (title = 'Product Designer' AND description = 'Design user-centred experiences from discovery through polished delivery.') OR
+       (title = 'Backend Developer' AND description = 'Create reliable Node.js services and APIs backed by relational data.') OR
+       (title = 'Data Analyst' AND description = 'Turn operational data into clear insights and practical decisions.')
+     )`,
+    [
+      starterJobs[0][2], starterJobs[1][2], starterJobs[2][2], starterJobs[3][2],
+    ],
+  );
+
   const ensureColumn = async (tableName, columnName, definition) => {
     const [columns] = await pool.query(
       `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
@@ -263,7 +467,18 @@ async function initializeDatabase() {
     );
     if (!constraints.length) await pool.query(`ALTER TABLE \`${tableName}\` ADD CONSTRAINT \`${constraintName}\` ${definition}`);
   };
-  await ensureColumn('job_descriptions', 'location', 'VARCHAR(200) NULL');
+  await ensureColumn('job_descriptions', 'location', 'VARCHAR(255) NULL');
+  await ensureColumn('job_descriptions', 'source', "VARCHAR(40) NOT NULL DEFAULT 'manual'");
+  await ensureColumn('job_descriptions', 'source_job_id', 'VARCHAR(120) NULL');
+  await ensureColumn('job_descriptions', 'source_country', "CHAR(2) NOT NULL DEFAULT ''");
+  await ensureColumn('job_descriptions', 'work_mode', 'VARCHAR(40) NULL');
+  await ensureColumn('job_descriptions', 'salary_min', 'DECIMAL(12, 2) NULL');
+  await ensureColumn('job_descriptions', 'salary_max', 'DECIMAL(12, 2) NULL');
+  await ensureColumn('job_descriptions', 'salary_currency', 'CHAR(3) NULL');
+  await ensureColumn('job_descriptions', 'employment_type', 'VARCHAR(60) NULL');
+  await ensureColumn('job_descriptions', 'apply_url', 'VARCHAR(1000) NULL');
+  await ensureColumn('job_descriptions', 'published_at', 'DATETIME NULL');
+  await ensureColumn('job_descriptions', 'fetched_at', 'DATETIME NULL');
   await ensureColumn('resumes', 'source_file_name', 'VARCHAR(255) NULL');
   await ensureColumn('resumes', 'extracted_text', 'MEDIUMTEXT NULL');
   await ensureColumn('job_matches', 'ats_score', 'INT NULL');
@@ -273,6 +488,7 @@ async function initializeDatabase() {
   await ensureColumn('interview_sessions', 'job_id', 'INT NULL');
   await ensureColumn('interview_sessions', 'resume_id', 'INT NULL');
   await ensureColumn('interview_questions', 'metadata', 'JSON NULL');
+  await ensureColumn('interview_sessions', 'scheduled_at', 'DATETIME NULL');
   await ensureIndex('resumes', 'idx_resumes_user_updated', '(user_id, updated_at)');
   await ensureIndex('job_descriptions', 'idx_jobs_user_created', '(user_id, created_at)');
   await ensureIndex('skill_gaps', 'idx_skill_gaps_user_updated', '(user_id, updated_at)');
@@ -297,6 +513,7 @@ async function initializeDatabase() {
 
 module.exports = {
   pool,
+  getDatabaseConfig,
   testDatabaseConnection,
   initializeDatabase,
 };

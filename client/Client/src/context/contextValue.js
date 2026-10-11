@@ -1,5 +1,1 @@
-import { createContext } from 'react';
-
-const AuthContext = createContext(null);
-
-export default AuthContext;
+export { AuthContext as default } from './AuthContext';

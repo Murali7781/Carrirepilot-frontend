@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../services/api';
-import { useAuth } from '../context/useAuth';
+import { useAuth } from '../context/AuthContext';
 import { FiSend } from 'react-icons/fi';
 
 export default function AiPage() {

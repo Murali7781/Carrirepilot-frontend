@@ -1,0 +1,195 @@
+:root {
+  --bg: #f2f3f9;
+  --panel: #ffffff;
+  --surface: #f7f8fc;
+  --text: #1d2740;
+  --muted: #727d96;
+  --primary: #4658e8;
+  --primary-strong: #3345cf;
+  --primary-soft: rgba(70, 88, 232, .12);
+  --accent: #222d66;
+  --success: #38a887;
+  --danger: #df6675;
+  --border: rgba(79, 88, 133, .13);
+  --shadow: 0 14px 36px rgba(45, 54, 101, .075);
+  --shadow-raised: 0 20px 48px rgba(48, 57, 113, .12), 0 3px 8px rgba(48, 57, 113, .045);
+  --accent-violet: #8660ea;
+}
+
+html, body, #root { background: var(--bg); }
+body { color: var(--text); }
+.app-shell { background: radial-gradient(ellipse at 82% 0%, rgba(223, 220, 255, .42), transparent 34%), #f2f3f9; color: var(--text); }
+.sidebar { border-color: #e9eaf3; background: rgba(255,255,255,.94); box-shadow: 8px 0 30px rgba(42,51,95,.025); }
+.brand-mark { background: linear-gradient(145deg,#6376ff,#4655df); color: #fff; box-shadow: 0 5px 12px rgba(70,88,232,.25); }
+.nav-link.active { background: linear-gradient(100deg,#edf0ff,#f2f1ff); color: #4054df; box-shadow: inset 3px 0 #5265ee; }
+.nav-link.active svg { color: #5265ee; }
+.topbar { border-color: #e4e6ef; }
+.topbar h1 { color: #202b47; }
+.topbar-account { border-color: #e4e6f0; box-shadow: 0 3px 10px rgba(49,59,104,.035); }
+.topbar-avatar { background: linear-gradient(145deg,#e4e8ff,#eee6ff); color: #4b57ce; }
+.sidebar-toggle-edge { border-color: #e2e4ef; color: #5865c8; box-shadow: 0 3px 10px rgba(47,57,108,.11); }
+.sidebar-toggle-edge:hover { background: #f1f2ff; color: #414fda; }
+
+.dashboard-page, .resume-page, .jobs-page, .interviews-page, .profile-page, .applications-workspace, .saved-jobs-page, .skills-page { color: var(--text); }
+.dashboard-panel, .dashboard-stat-card, .resume-builder, .resume-library, .resume-import-panel, .resume-analysis-panel,
+.resume-workflow-guide>div, .resume-library-card, .job-card, .job-match-shell, .job-details-panel, .resume-panel,
+.panel-card, .stack-item, .skill-card, .job-detail-card, .interview-session-card,
+.interview-create-card, .interview-welcome, .practice-question-card, .profile-content-card, .profile-progress-card,
+.application-summary-row>div, .application-tracker-card, .saved-job-card, .skill-card {
+  border-color: #e7e8f1;
+  background-color: rgba(255,255,255,.94);
+  box-shadow: 0 8px 26px rgba(44,53,102,.045), 0 1px 2px rgba(44,53,102,.025);
+}
+.dashboard-page h2, .resume-page-heading h2, .page-heading h2 { color: #202b47; }
+.dashboard-primary-action, .resume-primary-button, .interview-primary-button, .auth-submit {
+  border-color: transparent;
+  background: linear-gradient(135deg,#5669f3,#4051dc 70%,#6552dd);
+  box-shadow: 0 7px 17px rgba(70,88,232,.19);
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+.dashboard-primary-action:hover, .resume-primary-button:hover, .interview-primary-button:hover, .auth-submit:hover {
+  background: linear-gradient(135deg,#4d60e7,#3b4ccb 70%,#5b48d2);
+  box-shadow: 0 10px 22px rgba(70,88,232,.24);
+  transform: translateY(-1px);
+}
+.resume-eyebrow, .eyebrow, .dashboard-overline, .auth-form-eyebrow, .auth-overline { color: #5968dc; }
+.resume-step.active { color: #4b5ede; }
+.resume-step.active .resume-step-number { border-color: #5062eb; background: #5062eb; }
+.resume-field input:focus, .resume-field textarea:focus, .resume-analysis-controls select:focus,
+.auth-modern-form input:focus, .application-tracker-fields input:focus, .application-tracker-fields select:focus {
+  border-color: #8a96f4;
+  box-shadow: 0 0 0 3px rgba(86,105,243,.13);
+  outline: 0;
+}
+.auth-shell { background: #fff; }
+.auth-story-panel { background: radial-gradient(circle at 85% 12%, rgba(180,173,255,.34), transparent 29%), linear-gradient(145deg,#f6f7ff,#f0f1fb 75%,#e8edff); border-color: #e8e9f3; }
+.auth-art-wrap:before { background: linear-gradient(145deg,#e2e5ff,#f0eaff 60%,#dfe8ff); box-shadow: 0 24px 55px rgba(81,85,174,.12); }
+.auth-art-wrap:after { position:absolute; z-index:0; right:8%; bottom:3%; width:54%; height:15px; content:""; border-radius:50%; background:rgba(71,81,181,.16); filter:blur(13px); }
+.auth-art-wrap img { box-shadow: 0 24px 55px rgba(45,55,110,.16); }
+.auth-brand-mark, .auth-submit { background-color: #4658e8; }
+.auth-form-eyebrow, .auth-overline, .auth-art-check, .auth-story-footer>svg { color: #5366e3; }
+.auth-art-check { background: #eceeff; }
+.auth-form-modern input:focus, .auth-modern-form input:focus { border-color: #8995f3; box-shadow: 0 0 0 3px rgba(70,88,232,.13); }
+.auth-switch a, .auth-story-footer a { color: #4b5edb; }
+.auth-submit:hover { background-color: #3345cf; }
+.resume-import-panel { position:relative; overflow:hidden; background:linear-gradient(115deg,#f2f4ff 0%,#fff 58%,#f7f3ff 100%); }
+.resume-import-panel:after { position:absolute; top:-66px; right:6%; width:150px; height:150px; content:""; border:1px solid rgba(100,112,237,.12); border-radius:42px; background:linear-gradient(145deg,rgba(255,255,255,.86),rgba(225,228,255,.6)); box-shadow:12px 18px 30px rgba(78,88,189,.08); transform:rotate(24deg) skewY(-8deg); pointer-events:none; }
+.resume-import-panel>* { position:relative; z-index:1; }
+.resume-import-icon { background:linear-gradient(145deg,#e7eaff,#eee8ff); color:#5263de; box-shadow:0 5px 13px rgba(70,88,232,.1); }
+.resume-cta { background:linear-gradient(135deg,#586af0,#4454dc); box-shadow:0 7px 17px rgba(70,88,232,.18); }
+.resume-cta:hover { filter:brightness(.96); }
+.interview-welcome-art { filter:drop-shadow(0 15px 20px rgba(73,82,181,.14)); }
+.interview-art-ring { background:linear-gradient(145deg,#fff,#eeefff); box-shadow:10px 15px 25px rgba(66,78,170,.13),inset 0 1px 1px #fff; }
+.profile-cover { background:radial-gradient(circle at 84% 12%,rgba(198,190,255,.65),transparent 27%),linear-gradient(120deg,#f1f2ff,#e9efff 60%,#f4edff); }
+.profile-cover-pattern { opacity:.6; }
+.profile-avatar { border-color:#fff; background:linear-gradient(145deg,#5369ed,#9167e9); box-shadow:0 10px 22px rgba(74,85,190,.22); }
+.profile-card-icon { background:#eef0ff; color:#5366dc; }
+.profile-progress-track>span { background:linear-gradient(90deg,#5267ef,#9866e7); }
+.job-card, .panel-card, .stack-item, .skill-card, .job-match-shell, .job-details-panel, .resume-panel { border-radius:14px; box-shadow:0 9px 27px rgba(46,55,105,.055); }
+.job-card:hover, .skill-card:hover, .stack-item:hover { transform:translateY(-2px); box-shadow:var(--shadow-raised); }
+.company-avatar, .interview-icon, .interview-empty-icon { background:linear-gradient(145deg,#e9ecff,#f1eaff); color:#5366dc; }
+.resume-match-report { display:grid; grid-template-columns:minmax(250px,.78fr) minmax(0,1.22fr); gap:13px; margin-top:16px; }
+.resume-score-card, .resume-gap-card { min-width:0; padding:19px; border:1px solid #e7e8f1; border-radius:14px; background:#fff; box-shadow:0 9px 26px rgba(48,57,113,.055); }
+.resume-score-card { display:grid; grid-template-columns:110px minmax(0,1fr); align-items:center; gap:5px 17px; }
+.resume-score-ring { display:grid; width:106px; aspect-ratio:1; place-items:center; border-radius:50%; background:conic-gradient(#5367ed var(--score-value),#e9ebf5 var(--score-value)); box-shadow:0 8px 20px rgba(70,88,232,.12), inset 0 1px 2px rgba(255,255,255,.8); transform:rotate(-3deg); }
+.resume-score-ring>div { display:grid; width:79px; aspect-ratio:1; align-content:center; justify-items:center; border:1px solid rgba(80,95,215,.08); border-radius:50%; background:linear-gradient(145deg,#fff,#f6f7ff); transform:rotate(3deg); }
+.resume-score-ring strong { color:#27336f; font-size:1.48rem; letter-spacing:-.06em; line-height:1.1; }
+.resume-score-ring small { margin-top:3px; color:#858da8; font-size:.61rem; text-transform:uppercase; letter-spacing:.09em; }
+.resume-score-copy h4 { margin:4px 0 5px; color:#273251; font-size:.9rem; }
+.resume-score-copy p { margin:0; color:#7e879e; font-size:.67rem; line-height:1.55; }
+.resume-score-metrics { display:grid; grid-column:1/-1; gap:12px; margin-top:10px; padding-top:14px; border-top:1px solid #eef0f6; }
+.resume-score-meter-head { display:flex; justify-content:space-between; gap:8px; color:#56617c; font-size:.67rem; }
+.resume-score-meter-head b { color:#3646b7; font-size:.68rem; }
+.resume-score-track { height:7px; margin-top:6px; overflow:hidden; border-radius:99px; background:#eceefa; }
+.resume-score-track>span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#586bef,#9a68eb); transition:width .45s ease; }
+.resume-score-meter small { display:block; margin-top:4px; color:#9299ab; font-size:.59rem; }
+.resume-gap-card { display:grid; align-content:start; gap:14px; }
+.resume-report-section+.resume-report-section { padding-top:13px; border-top:1px solid #eef0f6; }
+.resume-report-section-title { display:flex; align-items:center; gap:7px; margin-bottom:9px; }
+.resume-report-section-title h4, .resume-report-section>h4 { margin:0; color:#35405d; font-size:.74rem; }
+.resume-report-section-title>small { margin-left:auto; color:#8c94a8; font-size:.62rem; }
+.resume-skill-dot { width:8px; height:8px; border-radius:50%; }
+.resume-skill-dot.matched { background:#40b38b; box-shadow:0 0 0 3px #e5f6ef; }
+.resume-skill-dot.missing { background:#e7ac4f; box-shadow:0 0 0 3px #fff5df; }
+.resume-gap-tags { display:flex; flex-wrap:wrap; gap:7px; }
+.resume-gap-tags span { padding:6px 9px; border:1px solid #f0dcae; border-radius:999px; background:#fff8e9; color:#88652b; font-size:.62rem; }
+.resume-gap-tags.matched-tags span { border-color:#ccebdd; background:#eef9f4; color:#34765e; }
+.resume-report-section p, .resume-report-section li { color:#778198; font-size:.66rem; line-height:1.6; }
+.resume-report-section p { margin:0; }
+.resume-report-section .resume-gap-guidance { margin-top:9px; }
+.resume-report-section ul { display:grid; gap:6px; margin:0; padding-left:17px; }
+.resume-preview-toolbar { display:flex; align-items:center; justify-content:space-between; gap:15px; margin:0 0 12px; }
+.resume-preview-toolbar p { margin:4px 0 0; color:#7e879d; font-size:.69rem; }
+.resume-download-button { flex:0 0 auto; min-height:38px; border-color:#dfe3f5; color:#4b5edb; }
+.resume-download-button:hover:not(:disabled) { border-color:#cbd1f4; background:#f4f5ff; color:#3f50cf; }
+.resume-review-links { display:flex; flex-wrap:wrap; gap:10px; margin-top:5px; }
+.resume-review-links a, .resume-pdf-link { color:#4b5edb; font-size:.7rem; text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere; }
+.resume-document-title { margin:3px 0!important; color:#66718e!important; font-size:.74rem!important; font-weight:650; }
+.resume-review-contact { display:flex; flex-wrap:wrap; gap:5px 10px; }
+.resume-review-contact a { color:#4b5edb; text-decoration:underline; text-underline-offset:2px; }
+.resume-review-paper article { margin:8px 0 12px; break-inside:avoid; }
+.resume-review-paper article h6 { margin:0 0 2px; color:#36415c; font-size:.72rem; font-weight:720; }
+.resume-review-paper article small { display:block; margin:2px 0 4px; color:#858da1; font-size:.64rem; }
+.resume-review-paper article p { margin:4px 0; }
+.practice-question-labels { display:flex; flex-wrap:wrap; gap:7px; margin:12px 0 8px; }
+.practice-question-labels span { padding:5px 8px; border:1px solid #e2e5f8; border-radius:999px; background:#f6f7ff; color:#5967c8; font-size:.63rem; font-weight:700; }
+.practice-question-labels .difficulty-label { border-color:#eedfb7; background:#fff9e9; color:#8a6b2f; }
+.practice-question-skills { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; }
+.practice-question-skills span { padding:4px 7px; border-radius:6px; background:#edf7f2; color:#34765e; font-size:.59rem; }
+.practice-generation-mode { margin:-3px 0 12px; padding:9px 11px; border:1px solid #dfe6fb; border-radius:8px; background:#f7f8ff; color:#5c6792; font-size:.67rem; line-height:1.5; }
+.practice-generation-mode.local { border-color:#e9dfc5; background:#fffaf0; color:#786842; }
+.practice-generation-mode.openai { border-color:#d5eadf; background:#f1faf5; color:#47745e; }
+.resume-analysis-actions>a { color:#4b5edb; }
+.resume-ai-review { border-color:#e1e5fb; background:linear-gradient(120deg,#f7f8ff,#fff); }
+.resume-ai-review header { color:#5668df; }
+.resume-ai-review header h4 { color:#344174; }
+.resume-ai-review>small button { color:#4d5fdb; }
+.resume-gap-guidance, .resume-analysis-heading p, .resume-ai-disclosure { color:#7e879d; }
+.dashboard-stat-card, .dashboard-panel, .application-tracker-card, .profile-content-card, .interview-session-card, .resume-library-card { transition:transform .18s ease,box-shadow .18s ease; }
+.dashboard-stat-card:hover, .application-tracker-card:hover, .resume-library-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-raised); }
+.coach-launcher { background:linear-gradient(135deg,#596bf0,#4654dc); border-color:#4654dc; box-shadow:0 9px 26px rgba(70,88,232,.24); }
+.coach-launcher:hover, .coach-launcher.open { background:#394bcf; }
+.coach-avatar { background:#eceeff; color:#5365dc; }
+.coach-message.user>span { background:#5265e6; }
+.coach-message.user p { background:#eef0ff; }
+.coach-compose>button { background:#4d60df; }
+
+@media(max-width:760px) {
+  .resume-match-report { grid-template-columns:1fr; }
+  .resume-score-card { grid-template-columns:90px minmax(0,1fr); padding:15px; }
+  .resume-score-ring { width:86px; }
+  .resume-score-ring>div { width:65px; }
+  .resume-score-ring strong { font-size:1.2rem; }
+  .resume-import-panel:after { right:-65px; opacity:.65; }
+}
+@media(max-width:480px) {
+  .resume-score-card { grid-template-columns:76px minmax(0,1fr); gap:5px 12px; }
+  .resume-score-ring { width:74px; }
+  .resume-score-ring>div { width:57px; }
+  .resume-score-ring strong { font-size:1rem; }
+  .resume-preview-toolbar { align-items:stretch; flex-direction:column; }
+  .resume-download-button { align-self:flex-start; }
+}
+@page { size:A4; margin:14mm; }
+@media print {
+  body.printing-resume, body.printing-resume #root { width:auto; min-height:0; background:#fff!important; }
+  body.printing-resume .sidebar, body.printing-resume .topbar, body.printing-resume .coach-widget,
+  body.printing-resume .resume-page> :not(.resume-builder), body.printing-resume .resume-builder-top,
+  body.printing-resume .resume-stepper, body.printing-resume .resume-builder-aside,
+  body.printing-resume .resume-extracted-source, body.printing-resume .resume-step-actions,
+  body.printing-resume .resume-preview-toolbar, body.printing-resume .resume-review-note { display:none!important; }
+  body.printing-resume .app-shell { display:block!important; min-height:0!important; background:#fff!important; }
+  body.printing-resume * { visibility:visible!important; }
+  body.printing-resume .main-panel, body.printing-resume .resume-page, body.printing-resume .resume-builder,
+  body.printing-resume .resume-builder-body, body.printing-resume .resume-editor,
+  body.printing-resume .resume-step-content, body.printing-resume .resume-review {
+    display:block!important; position:static!important; width:100%!important; min-height:0!important; margin:0!important; padding:0!important;
+    overflow:visible!important; border:0!important; background:#fff!important; box-shadow:none!important;
+  }
+  body.printing-resume .resume-review-paper { display:block!important; position:static!important; width:100%!important; min-height:0!important; margin:0!important; padding:0!important; overflow:visible!important; border:0!important; box-shadow:none!important; color:#1e2638!important; }
+  body.printing-resume .resume-review-paper section, body.printing-resume .resume-review-paper article, body.printing-resume .resume-review-head { break-inside:avoid; page-break-inside:avoid; }
+  body.printing-resume .resume-review-paper a { color:#314ac2!important; text-decoration:underline!important; }
+}
+@media(prefers-reduced-motion:reduce) {
+  *,*::before,*::after { scroll-behavior:auto!important; transition-duration:.01ms!important; animation-duration:.01ms!important; }
+}

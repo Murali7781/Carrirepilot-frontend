@@ -1,26 +1,60 @@
+const crypto = require('crypto');
+const fs = require('fs');
 const multer = require('multer');
+const path = require('path');
+const { resumeUploadDirectory } = require('../utils/resumeFiles');
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 0, parts: 1, fieldNameSize: 40 },
-  fileFilter(req, file, callback) {
-    const acceptedMimeTypes = new Set(['application/pdf', 'application/x-pdf', 'application/octet-stream']);
-    if (!acceptedMimeTypes.has(file.mimetype) || !file.originalname.toLowerCase().endsWith('.pdf')) {
-      const error = new Error('Only PDF resumes are accepted.');
-      error.statusCode = 400;
-      return callback(error);
-    }
-    return callback(null, true);
+const storage = multer.diskStorage({
+  destination(req, file, callback) {
+    fs.mkdir(resumeUploadDirectory, { recursive: true }, (error) => {
+      callback(error, resumeUploadDirectory);
+    });
+  },
+  filename(req, file, callback) {
+    callback(null, `${crypto.randomUUID()}.pdf`);
   },
 });
 
-function resumeUpload(req, res, next) {
-  upload.single('resume')(req, res, (error) => {
-    if (!error) return next();
-    if (error.code === 'LIMIT_FILE_SIZE') error.statusCode = 413;
-    if (error.code === 'LIMIT_UNEXPECTED_FILE') error.statusCode = 400;
-    return next(error);
+const fileFilter = (req, file, callback) => {
+  const hasPdfExtension = path.extname(file.originalname).toLowerCase() === '.pdf';
+  const supportedMimeTypes = ['application/pdf', 'application/x-pdf', 'application/octet-stream'];
+  if (hasPdfExtension && supportedMimeTypes.includes(file.mimetype)) {
+    callback(null, true);
+    return;
+  }
+
+  const error = new Error('Only PDF resumes are supported.');
+  error.statusCode = 400;
+  callback(error);
+};
+
+const limits = { fileSize: 10 * 1024 * 1024, files: 1 };
+
+const uploadResumePdf = multer({
+  storage,
+  limits,
+  fileFilter,
+}).single('resume');
+
+const uploadResumePdfToMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { ...limits, fileSize: 8 * 1024 * 1024, fields: 0, parts: 1, fieldNameSize: 40 },
+  fileFilter,
+}).single('resume');
+
+function normalizeMulterError(error, next) {
+  if (error?.code === 'LIMIT_FILE_SIZE') error.statusCode = 413;
+  if (error?.code === 'LIMIT_UNEXPECTED_FILE') error.statusCode = 400;
+  next(error);
+}
+
+function uploadMemory(req, res, next) {
+  uploadResumePdfToMemory(req, res, (error) => {
+    if (error) return normalizeMulterError(error, next);
+    return next();
   });
 }
 
-module.exports = resumeUpload;
+uploadResumePdf.memory = uploadMemory;
+
+module.exports = uploadResumePdf;

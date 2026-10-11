@@ -11,21 +11,32 @@ const tokenAudience = 'careerpilot-web';
 
 function setSessionCookie(res, user) {
   const token = jwt.sign(
-    { id: user.id, email: user.email, tokenVersion: Number(user.token_version) || 0 },
+    {
+      id: user.id,
+      email: user.email,
+      role: user.role || 'candidate',
+      tokenVersion: Number(user.token_version) || 0,
+    },
     getJwtSecret(),
     { expiresIn: '8h', algorithm: 'HS256', issuer: tokenIssuer, audience: tokenAudience },
   );
   res.cookie(sessionCookieName, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: sessionDurationMs,
     path: '/api',
   });
 }
 
 function getSafeUser(user) {
-  return { id: user.id, name: user.name, email: user.email, mobile: user.mobile || null };
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    mobile: user.mobile || null,
+    role: user.role || 'candidate',
+  };
 }
 
 async function register(req, res, next) {
@@ -57,10 +68,17 @@ async function register(req, res, next) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
     const [result] = await pool.query(
-      'INSERT INTO users (name, email, password, mobile) VALUES (?, ?, ?, ?)',
-      [name, normalizedEmail, hashedPassword, mobile || null],
+      'INSERT INTO users (name, email, password, mobile, role) VALUES (?, ?, ?, ?, ?)',
+      [name, normalizedEmail, hashedPassword, mobile || null, 'candidate'],
     );
-    const user = { id: result.insertId, name, email: normalizedEmail, mobile: mobile || null, token_version: 0 };
+    const user = {
+      id: result.insertId,
+      name,
+      email: normalizedEmail,
+      mobile: mobile || null,
+      role: 'candidate',
+      token_version: 0,
+    };
     setSessionCookie(res, user);
 
     return res.status(201).json(successResponse('Account created successfully', { user: getSafeUser(user) }));
@@ -81,7 +99,7 @@ async function login(req, res, next) {
     }
 
     const [users] = await pool.query(
-      'SELECT id, name, email, password, mobile, token_version FROM users WHERE email = ? LIMIT 1',
+      'SELECT id, name, email, password, mobile, role, token_version FROM users WHERE email = ? LIMIT 1',
       [email],
     );
     if (!users.length || !(await bcrypt.compare(password, users[0].password))) {
@@ -102,7 +120,7 @@ async function logout(req, res, next) {
     res.clearCookie(sessionCookieName, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/api',
     });
     return res.status(200).json(successResponse('Signed out successfully', { signedOut: true }));

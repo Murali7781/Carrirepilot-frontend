@@ -27,7 +27,7 @@ export default function CareerOverview({ skillGapsCount, matchesCount, resumesCo
           <Link to="/resumes" className="action-link">Manage resumes</Link>
           <Link to="/jobs" className="action-link">Explore jobs</Link>
           <Link to="/interviews" className="action-link">Plan interview</Link>
-          <Link to="/ai" className="action-link">AI coach</Link>
+          <button type="button" className="action-link" onClick={() => window.dispatchEvent(new Event('careerpilot:open-coach'))}>Open career assistant</button>
         </div>
       </div>
     </div>
