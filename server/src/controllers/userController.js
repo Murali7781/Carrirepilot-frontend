@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const { successResponse, errorResponse } = require('../utils/response');
+const { isValidMobileNumber } = require('../utils/validation');
 
 function parseList(value) {
   if (Array.isArray(value)) return value;
@@ -60,6 +61,7 @@ async function updateProfile(req, res, next) {
     workMode = cleanText('workMode', 20);
   } catch (error) { return res.status(error.statusCode || 400).json(errorResponse(error.message, error.statusCode || 400)); }
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json(errorResponse('Please provide a valid email address.', 400));
+  if (mobile !== undefined && !isValidMobileNumber(mobile)) return res.status(400).json(errorResponse('Enter a valid mobile number with 7 to 15 digits.', 400));
   if (workMode && !['Any', 'Remote', 'Hybrid', 'On-site'].includes(workMode)) return res.status(400).json(errorResponse('Choose Any, Remote, Hybrid, or On-site for work mode.', 400));
 
   const connection = await pool.getConnection();

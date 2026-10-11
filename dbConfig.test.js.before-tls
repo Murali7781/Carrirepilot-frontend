@@ -1,0 +1,80 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { getDatabaseConfig, initializeDatabase, pool } = require('../src/config/db');
+
+test('database initialization keeps schema setup and does not seed or rewrite demo jobs', async () => {
+  const originalQuery = pool.query;
+  const queries = [];
+
+  pool.query = async (sql) => {
+    queries.push(sql);
+    return [[], []];
+  };
+
+  try {
+    assert.equal(await initializeDatabase(), true);
+
+    const createStatements = queries.filter((sql) => /CREATE TABLE IF NOT EXISTS/i.test(sql));
+    assert.equal(createStatements.length, 15);
+    for (const tableName of [
+      'users', 'resumes', 'resume_analyses', 'resume_skills', 'job_descriptions',
+      'job_matches', 'skill_gaps', 'interview_sessions', 'interview_questions',
+      'interview_answers', 'chat_conversations', 'chat_messages',
+      'candidate_preferences', 'saved_jobs', 'applications',
+    ]) {
+      assert.ok(createStatements.some((sql) => new RegExp(`CREATE TABLE IF NOT EXISTS ${tableName}\\s*\\(`, 'i').test(sql)), `${tableName} schema remains initialized`);
+    }
+
+    assert.ok(queries.some((sql) => /ALTER TABLE job_descriptions ADD COLUMN/i.test(sql)));
+    assert.ok(queries.some((sql) => /ALTER TABLE users ADD COLUMN token_version/i.test(sql)));
+    assert.ok(queries.some((sql) => /UPDATE users SET role = 'candidate'/i.test(sql)), 'existing role normalization is preserved');
+
+    assert.ok(!queries.some((sql) => /SELECT id FROM users|INSERT INTO job_descriptions|UPDATE job_descriptions SET description|source\s*=\s*'demo'/i.test(sql)), 'startup has no demo-job select, insert, or description update');
+  } finally {
+    pool.query = originalQuery;
+  }
+});
+
+test('production MySQL connections verify TLS certificates', () => {
+  const names = ['NODE_ENV', 'DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'DB_PORT'];
+  const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+
+  try {
+    Object.assign(process.env, {
+      NODE_ENV: 'production',
+      DB_HOST: 'db.example.test',
+      DB_USER: 'careerpilot',
+      DB_PASSWORD: 'test-password',
+      DB_NAME: 'careerpilot',
+      DB_PORT: '3306',
+    });
+
+    assert.deepEqual(getDatabaseConfig().ssl, { rejectUnauthorized: true });
+  } finally {
+    for (const name of names) {
+      if (previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+    }
+  }
+});
+
+test('local MySQL remains compatible with servers that do not use TLS', () => {
+  const names = ['NODE_ENV', 'DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'DB_PORT'];
+  const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
+  try {
+    Object.assign(process.env, {
+      NODE_ENV: 'development',
+      DB_HOST: '127.0.0.1',
+      DB_USER: 'careerpilot',
+      DB_PASSWORD: 'test-password',
+      DB_NAME: 'careerpilot',
+      DB_PORT: '3306',
+    });
+    assert.equal(getDatabaseConfig().ssl, undefined);
+  } finally {
+    for (const name of names) {
+      if (previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+    }
+  }
+});

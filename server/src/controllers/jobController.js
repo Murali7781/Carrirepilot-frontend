@@ -2,7 +2,6 @@ const { pool } = require('../config/db');
 const { successResponse, errorResponse } = require('../utils/response');
 const { positiveInteger } = require('../utils/validation');
 const { getAdzunaConfig, searchAdzunaJobs } = require('../services/jobBoardService');
-const { addSampleJobs, sampleJobCount } = require('../services/sampleJobService');
 
 function badRequest(message) { const error = new Error(message); error.statusCode = 400; return error; }
 
@@ -122,7 +121,7 @@ async function listJobs(req, res, next) {
         pagination: { page, limit: 20, total: result.total, totalPages: Math.ceil(result.total / 20) },
       }));
     }
-    const where = ['j.user_id = ?'];
+    const where = ['j.user_id = ?', "(j.source IS NULL OR j.source <> 'sample')"];
     const values = [req.user.id];
     if (req.query.search !== undefined) {
       const searchText = cleanText(req.query.search, 'search', { max: 100 });
@@ -176,20 +175,6 @@ async function createJob(req, res, next) {
   } catch (error) { return next(error); }
 }
 
-async function addSampleJobsToWorkspace(req, res, next) {
-  try {
-    const { jobs, added } = await addSampleJobs(req.user.id);
-    return res.status(200).json(successResponse('Practice job listings added to your workspace', {
-      jobs,
-      added,
-      available: sampleJobCount,
-      note: 'These are sample listings for resume matching and interview practice, not live vacancies.',
-    }));
-  } catch (error) {
-    return next(error);
-  }
-}
-
 async function getJob(req, res, next) {
   try {
     const id = positiveInteger(req.params.id, 'job id');
@@ -198,7 +183,7 @@ async function getJob(req, res, next) {
               (SELECT sj.id FROM saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = ? LIMIT 1) AS saved_job_id,
               (SELECT a.id FROM applications a WHERE a.job_id = j.id AND a.user_id = ? LIMIT 1) AS application_id,
               (SELECT a.status FROM applications a WHERE a.job_id = j.id AND a.user_id = ? LIMIT 1) AS application_status
-       FROM job_descriptions j WHERE j.id = ? AND j.user_id = ? LIMIT 1`,
+       FROM job_descriptions j WHERE j.id = ? AND j.user_id = ? AND (j.source IS NULL OR j.source <> 'sample') LIMIT 1`,
       [req.user.id, req.user.id, req.user.id, id, req.user.id],
     );
     if (!rows.length) return res.status(404).json(errorResponse('Job description not found'));
@@ -244,4 +229,4 @@ async function deleteJob(req, res, next) {
   } catch (error) { return next(error); }
 }
 
-module.exports = { listJobs, addSampleJobsToWorkspace, createJob, getJob, updateJob, deleteJob };
+module.exports = { listJobs, createJob, getJob, updateJob, deleteJob };

@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
 const { getJwtSecret } = require('../config/environment');
 const { successResponse, errorResponse } = require('../utils/response');
+const { isValidMobileNumber } = require('../utils/validation');
 
 const sessionCookieName = 'careerpilot_session';
 const sessionDurationMs = 8 * 60 * 60 * 1000;
@@ -45,6 +46,9 @@ async function register(req, res, next) {
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     const normalizedEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const password = typeof body.password === 'string' ? body.password : '';
+    if (body.mobile != null && typeof body.mobile !== 'string') {
+      return res.status(400).json(errorResponse('Mobile number must be text.', 400));
+    }
     const mobile = typeof body.mobile === 'string' ? body.mobile.trim() : '';
 
     if (!name || !normalizedEmail || !password) {
@@ -56,14 +60,20 @@ async function register(req, res, next) {
     if (normalizedEmail.length > 255 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       return res.status(400).json(errorResponse('Please provide a valid email address', 400));
     }
-    if (password.length < 12) {
-      return res.status(400).json(errorResponse('Use a password with at least 12 characters', 400));
+    if (password.length !== 8) {
+      return res.status(400).json(errorResponse('Password must be exactly 8 characters.', 400));
     }
     if (Buffer.byteLength(password, 'utf8') > 72) {
       return res.status(400).json(errorResponse('Password must be 72 bytes or fewer', 400));
     }
+    if (typeof body.confirmPassword !== 'string' || body.confirmPassword !== password) {
+      return res.status(400).json(errorResponse('Password confirmation does not match.', 400));
+    }
     if (mobile.length > 20) {
       return res.status(400).json(errorResponse('Mobile number must be 20 characters or fewer', 400));
+    }
+    if (!isValidMobileNumber(mobile)) {
+      return res.status(400).json(errorResponse('Enter a valid mobile number with 7 to 15 digits.', 400));
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
@@ -107,6 +117,9 @@ async function login(req, res, next) {
     }
 
     const user = users[0];
+    if (!['candidate', 'recruiter', 'admin'].includes(String(user.role || '').toLowerCase())) {
+      return res.status(403).json(errorResponse('This account role is not permitted to sign in. Contact support.', 403));
+    }
     setSessionCookie(res, user);
     return res.status(200).json(successResponse('Login successful', { user: getSafeUser(user) }));
   } catch (error) {

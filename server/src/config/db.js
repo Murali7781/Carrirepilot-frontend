@@ -1,5 +1,7 @@
 const mysql = require('mysql2/promise');
 const { lookup } = require('node:dns/promises');
+const { X509Certificate } = require('node:crypto');
+const { createSecureContext } = require('node:tls');
 
 const requiredEnvironmentVariables = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'DB_PORT'];
 
@@ -18,6 +20,33 @@ function getDatabaseConfig() {
     throw new Error('DB_PORT must be a valid positive integer.');
   }
 
+  let ssl;
+  if (process.env.NODE_ENV === 'production') {
+    const caCertificate = process.env.DB_CA_CERT?.replace(/\\n/g, '\n').trim();
+
+    if (!caCertificate) {
+      throw new Error('DB_CA_CERT is required in production for verified MySQL TLS connections.');
+    }
+
+    try {
+      const certificates = caCertificate.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g);
+      const remainingPem = caCertificate.replace(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g, '').trim();
+      if (!certificates?.length || remainingPem) {
+        throw new Error('Invalid PEM certificate format.');
+      }
+      for (const certificate of certificates) {
+        if (!new X509Certificate(certificate).ca) {
+          throw new Error('The supplied certificate is not a CA certificate.');
+        }
+      }
+      createSecureContext({ ca: caCertificate });
+    } catch {
+      throw new Error('DB_CA_CERT must contain a valid PEM-encoded CA certificate in production.');
+    }
+
+    ssl = { ca: caCertificate, rejectUnauthorized: true };
+  }
+
   return {
     host: process.env.DB_HOST.trim(),
     user: process.env.DB_USER.trim(),
@@ -28,9 +57,7 @@ function getDatabaseConfig() {
     connectionLimit: 10,
     queueLimit: 0,
     charset: 'utf8mb4',
-    ssl: process.env.NODE_ENV === 'production'
-      ? { rejectUnauthorized: true }
-      : undefined,
+    ssl,
   };
 }
 
@@ -399,49 +426,6 @@ async function initializeDatabase() {
   } catch (error) {
     if (error.code !== 'ER_DUP_FIELDNAME') throw error;
   }
-
-  const [users] = await pool.query('SELECT id FROM users');
-  const starterJobs = [
-    ['Frontend Engineer', 'Northstar Labs', 'Build and maintain responsive, accessible web experiences with React and modern JavaScript. Partner with product designers and backend engineers to turn requirements into reusable UI, integrate APIs, write component and browser tests, investigate production issues, and improve page performance. Required: React, JavaScript, HTML, CSS, accessibility, API integration, Git, and testing. Preferred: TypeScript and design systems.', ['React', 'JavaScript', 'HTML', 'CSS', 'Accessibility', 'Testing'], ['TypeScript', 'Design systems'], '2+ years'],
-    ['Product Designer', 'Orbit Studio', 'Lead product design from early discovery through detailed delivery. Interview users, map workflows, create wireframes and interactive prototypes, test concepts, maintain accessible design patterns, and work with engineers through implementation. Required: Figma, user research, interaction design, prototyping, accessibility, and communication. Preferred: design systems and usability testing.', ['Figma', 'UX research', 'Interaction design', 'Prototyping', 'Accessibility'], ['Design systems', 'Usability testing'], '2+ years'],
-    ['Backend Developer', 'SignalWorks', 'Design, implement, and operate dependable Node.js services and APIs. Model relational data, apply authentication and validation, write automated tests, review changes, monitor service health, and work with frontend and product teams. Required: Node.js, API design, SQL, authentication, testing, Git, and debugging. Preferred: Docker and cloud deployment.', ['Node.js', 'API design', 'SQL', 'Authentication', 'Testing'], ['Docker', 'Cloud'], '1+ year'],
-    ['Data Analyst', 'Greenline Mobility', 'Analyze operational and product data to help teams make better decisions. Write documented SQL, validate data quality, build clear dashboards, investigate changes in key measures, and present practical findings to non-technical partners. Required: SQL, spreadsheets, data visualization, analytical reasoning, and communication. Preferred: Python and Tableau.', ['SQL', 'Spreadsheets', 'Data visualization', 'Communication'], ['Python', 'Tableau'], '1+ year'],
-  ];
-
-  for (const user of users) {
-    const [existingJobs] = await pool.query('SELECT id FROM job_descriptions WHERE user_id = ? LIMIT 1', [user.id]);
-    if (existingJobs.length) continue;
-    await pool.query(
-      `INSERT INTO job_descriptions
-       (user_id, title, company, description, required_skills, preferred_skills, experience_requirements, source)
-       VALUES ?`,
-      [starterJobs.map(([title, company, description, required, preferred, experience]) => [
-        user.id,
-        title,
-        company,
-        description,
-        JSON.stringify(required),
-        JSON.stringify(preferred),
-        experience,
-        'demo',
-      ])],
-    );
-  }
-
-  await pool.query(
-    `UPDATE job_descriptions SET description = CASE title
-       WHEN 'Frontend Engineer' THEN ? WHEN 'Product Designer' THEN ?
-       WHEN 'Backend Developer' THEN ? WHEN 'Data Analyst' THEN ? ELSE description END
-     WHERE source = 'demo' AND (
-       (title = 'Frontend Engineer' AND description = 'Build accessible React interfaces and collaborate with product and design teams.') OR
-       (title = 'Product Designer' AND description = 'Design user-centred experiences from discovery through polished delivery.') OR
-       (title = 'Backend Developer' AND description = 'Create reliable Node.js services and APIs backed by relational data.') OR
-       (title = 'Data Analyst' AND description = 'Turn operational data into clear insights and practical decisions.')
-     )`,
-    [
-      starterJobs[0][2], starterJobs[1][2], starterJobs[2][2], starterJobs[3][2],
-    ],
-  );
 
   const ensureColumn = async (tableName, columnName, definition) => {
     const [columns] = await pool.query(
