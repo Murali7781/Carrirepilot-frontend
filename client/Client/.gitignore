@@ -22,3 +22,23 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.npm-cache/
+.env
+.env.*
+
+# Build outputs and caches
+dist/
+.vite/
+/.cache/
+coverage/
+
+# IDE/editor files
+.vscode/
+.idea/
+.DS_Store
+
+# Additional env files (local, test, production)
+.env.local
+.env.test
+.env.production
