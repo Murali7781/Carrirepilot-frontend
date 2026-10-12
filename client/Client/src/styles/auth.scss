@@ -1,4 +1,6 @@
 .auth-shell {
+  /* Mobile first adjustments */
+}
     min-height: 100vh;
     display: grid;
     grid-template-columns: minmax(440px, 1fr) minmax(420px, 1fr);
@@ -14,7 +16,7 @@
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    padding: 60px clamp(30px, 7vw, 112px)
+    padding: 40px clamp(20px, 5vw, 80px)
 }
 
 .auth-form-content {
@@ -239,7 +241,7 @@
     max-width: 470px;
     margin: 15px 0 12px;
     color: #1a2d50;
-    font-size: clamp(2rem, 3vw, 3.25rem);
+    font-size: clamp(1.5rem, 5vw, 2.5rem);
     line-height: 1.12;
     letter-spacing: -.05em
 }
@@ -269,6 +271,9 @@
 }
 
 .auth-art-wrap img {
+  max-width: 100%;
+  height: auto;
+}
     position: relative;
     z-index: 1;
     display: block;
@@ -433,3 +438,32 @@
         margin-bottom: 22px
     }
 }
+
+/* Extra mobile tweaks for entry page */
+@media (max-width: 480px) {
+  .auth-shell {
+    display: block;
+  }
+  .auth-form-panel {
+    padding: 30px 20px;
+    min-height: 100vh;
+  }
+  .auth-form-content {
+    width: 100%;
+  }
+  .auth-form-content h2 {
+    font-size: 1.5rem;
+  }
+  .auth-submit {
+    height: 44px;
+    font-size: .78rem;
+  }
+  .auth-art-heading h1 {
+    font-size: clamp(1.5rem, 5vw, 2.5rem);
+  }
+  .auth-art-wrap img {
+    max-height: 250px;
+    height: auto;
+    width: 100%;
+  }
+}
